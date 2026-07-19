@@ -1,0 +1,48 @@
+# Sensitive local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+*secrets*
+
+# Personal discussions and chat exports
+/part/
+/补充材料/奇遇长隆_网页逻辑与内容说明_补充材料.docx
+
+# Local automation state
+/.playwright-cli/
+
+# Dependency backups and installed dependencies
+/chimelong-pretrip-demo-dependency-backup-20260717/
+/chimelong-pretrip-demo-dependency-backup-20260717.codex-old-broken-links/
+node_modules/
+.pnpm-store/
+
+# Generated and rendered output
+/output/
+/qiyu-remotion-video/output/
+dist/
+build/
+coverage/
+*.log
+*.pid
+
+# Keep only the four curated demo recordings used by the Remotion source
+/qiyu-remotion-video/public/recordings/*.webm
+!/qiyu-remotion-video/public/recordings/pretrip.webm
+!/qiyu-remotion-video/public/recordings/inpark.webm
+!/qiyu-remotion-video/public/recordings/posttrip.webm
+!/qiyu-remotion-video/public/recordings/memory-reel.webm
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+~$*

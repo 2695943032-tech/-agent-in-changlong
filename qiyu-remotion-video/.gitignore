@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+output/
+public/recordings/*.webm
+!public/recordings/pretrip.webm
+!public/recordings/inpark.webm
+!public/recordings/posttrip.webm
+!public/recordings/memory-reel.webm

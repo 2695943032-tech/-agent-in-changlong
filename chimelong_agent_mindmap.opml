@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>长隆全周期空间智能动物Agent</title>
+  </head>
+  <body>
+    <outline text="长隆全周期空间智能动物Agent">
+      <outline text="游前｜感知与个性化规划">
+        <outline text="游客需求采集">
+          <outline text="出游结构">
+            <outline text="单人、情侣、亲子、家庭、朋友团"/>
+            <outline text="人数及儿童、老人年龄"/>
+          </outline>
+          <outline text="兴趣偏好">
+            <outline text="明星动物、科普研学、演出、拍照、休闲"/>
+            <outline text="喜爱的动物IP与互动方式"/>
+          </outline>
+          <outline text="行程约束">
+            <outline text="入园与离园时间"/>
+            <outline text="体力、步行距离、用餐时间与忌口"/>
+            <outline text="无障碍、婴童车及特殊服务需求"/>
+          </outline>
+          <outline text="授权设置">
+            <outline text="定位、照片、行程与个性化推荐授权"/>
+            <outline text="数据用途说明及随时关闭入口"/>
+          </outline>
+        </outline>
+        <outline text="AI行程规划">
+          <outline text="数据输入">
+            <outline text="园区地图与项目开放时间"/>
+            <outline text="历史及实时客流、排队时长"/>
+            <outline text="天气、演出场次、动物活跃时段"/>
+            <outline text="餐厅余位、酒店与交通接驳信息"/>
+          </outline>
+          <outline text="路线生成">
+            <outline text="亲子科普路线"/>
+            <outline text="青年打卡路线"/>
+            <outline text="轻松休闲路线"/>
+            <outline text="雨天与高峰备用路线"/>
+          </outline>
+          <outline text="行程输出">
+            <outline text="时间轴、路线图和预计步行时间"/>
+            <outline text="必玩点、弹性点及备选点"/>
+            <outline text="用餐、休息、拍照与购物节点"/>
+          </outline>
+        </outline>
+        <outline text="动物伙伴预绑定">
+          <outline text="选择首位动物伙伴"/>
+          <outline text="完成简短性格测试"/>
+          <outline text="动物Agent自我介绍"/>
+          <outline text="发放入园前故事任务"/>
+          <outline text="建立初始好感度与数字身份"/>
+        </outline>
+        <outline text="出发准备与提醒">
+          <outline text="门票、酒店及交通信息整合"/>
+          <outline text="天气、穿着和随身物品提醒"/>
+          <outline text="演出与餐厅预约提醒"/>
+          <outline text="儿童走失预防及安全须知"/>
+          <outline text="一键分享行程给同行成员"/>
+        </outline>
+        <outline text="游前商业触点">
+          <outline text="酒店房型与套餐推荐"/>
+          <outline text="餐厅预约及特色餐品预订"/>
+          <outline text="快速通行、接驳和增值服务"/>
+          <outline text="动物IP周边愿望清单"/>
+          <outline text="门票、住宿、餐饮组合产品"/>
+        </outline>
+      </outline>
+      <outline text="游中｜空间沉浸与动态陪游">
+        <outline text="入园识别与状态同步">
+          <outline text="绑定门票和同行成员"/>
+          <outline text="同步游前计划与预约"/>
+          <outline text="开启定位及消息提醒"/>
+          <outline text="确认体力、情绪和临时需求"/>
+          <outline text="生成当日实时行程首页"/>
+        </outline>
+        <outline text="全局行程调度Agent">
+          <outline text="实时感知">
+            <outline text="客流与排队变化"/>
+            <outline text="天气、演出及临时闭园信息"/>
+            <outline text="餐厅余位与交通接驳状态"/>
+            <outline text="游客位置、进度及体力反馈"/>
+          </outline>
+          <outline text="动态决策">
+            <outline text="自动调整游览顺序"/>
+            <outline text="推荐低拥挤替代景点"/>
+            <outline text="插入休息、用餐和购物节点"/>
+            <outline text="提供调整原因与游客选择权"/>
+          </outline>
+          <outline text="多人协同">
+            <outline text="同行成员行程同步"/>
+            <outline text="分组游玩与集合点规划"/>
+            <outline text="儿童、老人优先路线调整"/>
+          </outline>
+        </outline>
+        <outline text="空间触发式动物Agent">
+          <outline text="唤醒方式">
+            <outline text="GIS地理围栏自动触发"/>
+            <outline text="蓝牙信标辅助精确定位"/>
+            <outline text="二维码或NFC作为备用入口"/>
+          </outline>
+          <outline text="独立角色">
+            <outline text="不同物种拥有专属人设、语气和故事"/>
+            <outline text="明星动物拥有个体档案与成长故事"/>
+            <outline text="根据儿童、成人切换表达深度"/>
+          </outline>
+          <outline text="互动形态">
+            <outline text="文字、语音、动画形象"/>
+            <outline text="主动问候与即兴对话"/>
+            <outline text="记忆称呼、偏好和任务进度"/>
+          </outline>
+        </outline>
+        <outline text="沉浸式动物科普">
+          <outline text="基于专家审核知识库回答问题"/>
+          <outline text="结合现场行为进行观察引导"/>
+          <outline text="动物叫声、习性与栖息地讲解"/>
+          <outline text="亲子问答、猜谜和闯关任务"/>
+          <outline text="动物保护与生态教育内容"/>
+          <outline text="敏感问题过滤及人工服务兜底"/>
+        </outline>
+        <outline text="情绪互动与游戏化">
+          <outline text="收集数字印章与动物徽章"/>
+          <outline text="完成任务提升动物好感度"/>
+          <outline text="解锁隐藏故事和角色语音"/>
+          <outline text="生日、纪念日惊喜互动"/>
+          <outline text="生成动物朋友排行榜"/>
+          <outline text="团队或家庭共同挑战任务"/>
+        </outline>
+        <outline text="拍照与即时内容">
+          <outline text="推荐最佳拍照点和时间"/>
+          <outline text="动物Agent提供姿势与构图指导"/>
+          <outline text="自动匹配动物主题相框和贴纸"/>
+          <outline text="不愿出镜时生成AI虚拟形象"/>
+          <outline text="生成当日精彩片段预览"/>
+        </outline>
+        <outline text="多业态无感衔接">
+          <outline text="餐饮">
+            <outline text="就近餐厅与错峰用餐推荐"/>
+            <outline text="预约、排号、点单和取餐提醒"/>
+            <outline text="按过敏、忌口及儿童需求筛选"/>
+          </outline>
+          <outline text="零售">
+            <outline text="按已互动动物推荐对应周边"/>
+            <outline text="提醒附近限定商品与库存"/>
+            <outline text="收藏、园内自提或快递到家"/>
+          </outline>
+          <outline text="酒店">
+            <outline text="入住、退房及房间方向指引"/>
+            <outline text="班车、行李和休息服务提醒"/>
+            <outline text="游玩结束后的餐饮与活动推荐"/>
+          </outline>
+          <outline text="娱乐">
+            <outline text="演出、巡游和马戏场次衔接"/>
+            <outline text="开场提醒及步行时间预估"/>
+          </outline>
+        </outline>
+        <outline text="突发场景服务">
+          <outline text="下雨、高温与空气质量提醒"/>
+          <outline text="项目关闭后的替代路线"/>
+          <outline text="疲劳时推荐休息点和接驳服务"/>
+          <outline text="厕所、母婴室、医务室导航"/>
+          <outline text="走失、受伤及紧急事件人工转接"/>
+          <outline text="拥堵区域主动预警和分流"/>
+        </outline>
+        <outline text="游中体验指标">
+          <outline text="路线完成率与临时调整次数"/>
+          <outline text="平均排队及步行时间"/>
+          <outline text="动物Agent唤醒率和互动完成率"/>
+          <outline text="科普任务与徽章完成率"/>
+          <outline text="餐饮、零售推荐点击及转化率"/>
+        </outline>
+      </outline>
+      <outline text="游后｜内容留存与长期运营">
+        <outline text="AIGC专属内容生成">
+          <outline text="授权素材">
+            <outline text="游览轨迹"/>
+            <outline text="动物Agent对话"/>
+            <outline text="任务、徽章与好感度"/>
+            <outline text="游客主动上传的照片和视频"/>
+          </outline>
+          <outline text="内容产品">
+            <outline text="个性化图文游记"/>
+            <outline text="当日足迹地图"/>
+            <outline text="动物伙伴动画短片"/>
+            <outline text="亲子科普成长报告"/>
+            <outline text="数字纪念册与年度回忆"/>
+          </outline>
+          <outline text="用户控制">
+            <outline text="生成前选择使用素材"/>
+            <outline text="支持编辑、删除和重新生成"/>
+            <outline text="分享前进行隐私检查"/>
+          </outline>
+        </outline>
+        <outline text="数字资产沉淀">
+          <outline text="保存动物徽章和数字印章"/>
+          <outline text="延续动物好感度及互动记忆"/>
+          <outline text="建立个人动物图鉴"/>
+          <outline text="记录亲子科普学习成果"/>
+          <outline text="跨园区累积长隆数字身份"/>
+          <outline text="解锁后续专属故事和权益"/>
+        </outline>
+        <outline text="社交分享与口碑传播">
+          <outline text="一键生成朋友圈图文"/>
+          <outline text="生成抖音、小红书短视频模板"/>
+          <outline text="自动推荐标题、音乐和话题"/>
+          <outline text="支持家庭成员共同编辑"/>
+          <outline text="游客确认后再公开发布"/>
+        </outline>
+        <outline text="AIGC与实体商品转化">
+          <outline text="免费基础版">
+            <outline text="简易游记"/>
+            <outline text="足迹地图"/>
+            <outline text="基础电子纪念卡"/>
+          </outline>
+          <outline text="付费升级版">
+            <outline text="高清动画短片"/>
+            <outline text="完整数字纪念册"/>
+            <outline text="无水印多尺寸内容"/>
+          </outline>
+          <outline text="实体衍生品">
+            <outline text="定制纪念画册"/>
+            <outline text="偏好动物玩偶与挂件"/>
+            <outline text="游客形象明信片、服装和摆件"/>
+            <outline text="园内自提或快递到家"/>
+          </outline>
+        </outline>
+        <outline text="动物IP长期陪伴">
+          <outline text="动物Agent延续上次互动记忆"/>
+          <outline text="推送所喜爱动物的成长动态"/>
+          <outline text="生日、节日和纪念日问候"/>
+          <outline text="发布动物保护和公益活动"/>
+          <outline text="新展区、新成员和新任务提醒"/>
+          <outline text="用户自主设置消息频率或退订"/>
+        </outline>
+        <outline text="复游与会员转化">
+          <outline text="根据未完成图鉴生成复游理由"/>
+          <outline text="推荐不同季节和园区的新路线"/>
+          <outline text="发放动物伙伴专属复游任务"/>
+          <outline text="连接会员积分与年度活动"/>
+          <outline text="提供酒店、门票及餐饮组合权益"/>
+          <outline text="从广州长隆延伸至横琴、清远长隆"/>
+        </outline>
+        <outline text="反馈与持续优化">
+          <outline text="收集满意度、推荐意愿及意见"/>
+          <outline text="对比计划路线与实际游览轨迹"/>
+          <outline text="优化客流预测与路线推荐"/>
+          <outline text="更新动物知识库和安全规则"/>
+          <outline text="分析内容偏好与商品需求"/>
+          <outline text="以A/B测试验证排队、互动、消费及复游指标"/>
+        </outline>
+      </outline>
+    </outline>
+  </body>
+</opml>

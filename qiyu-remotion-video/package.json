@@ -1,0 +1,24 @@
+{
+  "name": "qiyu-remotion-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "node scripts/capture-site.mjs",
+    "capture:memory": "node scripts/capture-memory-reel.mjs",
+    "audio": "node scripts/generate-audio.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts QiyuPromo output/qiyu-promo-60s.mp4 --codec=h264 --crf=18 --pixel-format=yuv420p --browser-executable=C:\\Progra~1\\Google\\Chrome\\Application\\chrome.exe"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.491",
+    "playwright": "1.54.1",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.491"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.10",
+    "typescript": "5.9.2"
+  }
+}
