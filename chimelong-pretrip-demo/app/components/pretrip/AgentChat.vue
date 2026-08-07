@@ -172,7 +172,7 @@ watch(() => props.messages.length, async () => {
 </script>
 
 <template>
-  <section class="chat-shell" :style="{ '--agent-accent': companion.accent }">
+  <section class="chat-shell" data-release="2026-08-07-collaboration-release-2" :style="{ '--agent-accent': companion.accent }">
     <header class="chat-header">
       <button class="back-button" type="button" aria-label="返回上一步" @click="emit('back')">←</button>
       <div class="header-agent">
