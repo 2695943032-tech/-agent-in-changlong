@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run on the deployment server after uploading
-# /tmp/chimelong-release-<release-id>.tar.gz.
+# Run on the deployment server after uploading the source archive
+# /tmp/chimelong-release-<release-id>.tar.gz. Building on the server ensures
+# that the Node/Nitro output matches the Linux runtime.
 release_id="${1:?release id is required}"
 current="/var/www/chimelong-pretrip-demo"
 stage="/var/www/chimelong-pretrip-demo.release-${release_id}"
@@ -22,11 +23,15 @@ trap cleanup_stage_app EXIT
 
 mkdir -p "$stage"
 tar -xzf "$archive" -C "$stage"
-test -f "$stage/.output/server/index.mjs"
 
 if test -f "$current/.env"; then
   cp -a "$current/.env" "$stage/.env"
 fi
+
+cd "$stage"
+pnpm install --frozen-lockfile
+pnpm build
+test -f "$stage/.output/server/index.mjs"
 
 # Preserve previous hashed chunks for visitors with an already-open tab.
 cp -an "$current/.output/public/_nuxt/." "$stage/.output/public/_nuxt/" 2>/dev/null || true
