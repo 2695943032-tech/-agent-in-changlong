@@ -1,0 +1,1030 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Iterable, Sequence
+
+from reportlab.lib import colors
+from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    BaseDocTemplate,
+    CondPageBreak,
+    Flowable,
+    Frame,
+    Image,
+    KeepTogether,
+    ListFlowable,
+    ListItem,
+    PageBreak,
+    PageTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+)
+from reportlab.platypus.tableofcontents import TableOfContents
+
+
+ROOT = Path(r"C:\Users\Zyanya\Documents\ai大赛")
+PROJECT = Path(r"D:\ai创新大赛\chimelong-pretrip-demo")
+OUTPUT = ROOT / "output" / "pdf" / "奇遇AI_全周期空间智能动物Agent项目计划书.pdf"
+TMP = ROOT / "tmp" / "pdfs"
+
+PAGE_W, PAGE_H = A4
+
+DARK = HexColor("#071B15")
+DARK_2 = HexColor("#102B23")
+GREEN = HexColor("#2E7D68")
+MINT = HexColor("#6FC596")
+GOLD = HexColor("#D9AE58")
+GOLD_SOFT = HexColor("#F0DCAE")
+CREAM = HexColor("#F4F0E6")
+PAPER = HexColor("#FBF9F3")
+INK = HexColor("#25372F")
+MUTED = HexColor("#68736D")
+LINE = HexColor("#DED8CA")
+CORAL = HexColor("#A85C43")
+PURPLE = HexColor("#8E79C6")
+BLUE = HexColor("#2B91A3")
+
+
+def register_fonts() -> None:
+    pdfmetrics.registerFont(TTFont("QY", r"C:\Windows\Fonts\msyh.ttc"))
+    pdfmetrics.registerFont(TTFont("QY-Bold", r"C:\Windows\Fonts\msyhbd.ttc"))
+    pdfmetrics.registerFont(TTFont("QY-Black", r"C:\Windows\Fonts\simhei.ttf"))
+
+
+register_fonts()
+
+
+def ptext(value: str) -> str:
+    return value.replace("\n", "<br/>")
+
+
+styles = getSampleStyleSheet()
+styles.add(ParagraphStyle(
+    name="BodyCN", fontName="QY", fontSize=9.2, leading=15.4,
+    textColor=INK, alignment=TA_JUSTIFY, wordWrap="CJK", spaceAfter=6,
+))
+styles.add(ParagraphStyle(
+    name="LeadCN", parent=styles["BodyCN"], fontSize=11.4, leading=19,
+    textColor=DARK_2, spaceAfter=11,
+))
+styles.add(ParagraphStyle(
+    name="H1CN", fontName="QY-Black", fontSize=24, leading=31,
+    textColor=DARK_2, spaceBefore=4, spaceAfter=13, keepWithNext=True,
+))
+styles.add(ParagraphStyle(
+    name="H2CN", fontName="QY-Bold", fontSize=14.2, leading=20,
+    textColor=GREEN, spaceBefore=12, spaceAfter=7, keepWithNext=True,
+))
+styles.add(ParagraphStyle(
+    name="H3CN", fontName="QY-Bold", fontSize=10.5, leading=16,
+    textColor=CORAL, spaceBefore=7, spaceAfter=4, keepWithNext=True,
+))
+styles.add(ParagraphStyle(
+    name="SmallCN", fontName="QY", fontSize=7.5, leading=11.5,
+    textColor=MUTED, wordWrap="CJK",
+))
+styles.add(ParagraphStyle(
+    name="TinyCN", fontName="QY", fontSize=6.3, leading=9.4,
+    textColor=MUTED, wordWrap="CJK",
+))
+styles.add(ParagraphStyle(
+    name="CardTitle", fontName="QY-Bold", fontSize=10.2, leading=14,
+    textColor=DARK_2, wordWrap="CJK", spaceAfter=4,
+))
+styles.add(ParagraphStyle(
+    name="CardBody", fontName="QY", fontSize=7.8, leading=12.2,
+    textColor=MUTED, wordWrap="CJK",
+))
+styles.add(ParagraphStyle(
+    name="QuoteCN", fontName="QY-Bold", fontSize=15, leading=24,
+    textColor=CREAM, alignment=TA_LEFT, wordWrap="CJK",
+))
+styles.add(ParagraphStyle(
+    name="TOCHeading", fontName="QY-Bold", fontSize=9.5, leading=14,
+    leftIndent=0, firstLineIndent=0, textColor=INK,
+))
+
+
+class QiyuDocTemplate(BaseDocTemplate):
+    def __init__(self, filename: str):
+        super().__init__(
+            filename,
+            pagesize=A4,
+            leftMargin=19 * mm,
+            rightMargin=19 * mm,
+            topMargin=20 * mm,
+            bottomMargin=18 * mm,
+            title="奇遇AI - 全周期空间智能动物Agent项目计划书",
+            author="奇遇AI项目组",
+            subject="AI创新大赛项目计划书",
+        )
+        frame = Frame(
+            self.leftMargin,
+            self.bottomMargin,
+            self.width,
+            self.height,
+            id="normal",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+        self.addPageTemplates(PageTemplate(id="main", frames=[frame], onPage=self.draw_page))
+
+    def afterFlowable(self, flowable):
+        if isinstance(flowable, Paragraph):
+            style = flowable.style.name
+            if style in ("H1CN", "H2CN"):
+                level = 0 if style == "H1CN" else 1
+                text = flowable.getPlainText()
+                key = f"toc-{level}-{self.seq.nextf('heading')}"
+                self.canv.bookmarkPage(key)
+                self.canv.addOutlineEntry(text, key, level=level, closed=False)
+                self.notify("TOCEntry", (level, text, self.page, key))
+
+    def draw_page(self, canv: canvas.Canvas, doc) -> None:
+        if doc.page == 1:
+            draw_cover(canv)
+            return
+        canv.saveState()
+        canv.setFillColor(PAPER)
+        canv.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
+        canv.setStrokeColor(LINE)
+        canv.setLineWidth(0.35)
+        canv.line(19 * mm, PAGE_H - 14 * mm, PAGE_W - 19 * mm, PAGE_H - 14 * mm)
+        canv.setFont("QY-Bold", 7.2)
+        canv.setFillColor(GREEN)
+        canv.drawString(19 * mm, PAGE_H - 10.8 * mm, "奇遇AI · 全周期空间智能动物Agent")
+        canv.setFont("QY", 6.7)
+        canv.setFillColor(MUTED)
+        canv.drawRightString(PAGE_W - 19 * mm, PAGE_H - 10.8 * mm, "PROJECT PLAN · 2026")
+        canv.setStrokeColor(LINE)
+        canv.line(19 * mm, 12.5 * mm, PAGE_W - 19 * mm, 12.5 * mm)
+        canv.setFont("QY", 6.5)
+        canv.setFillColor(MUTED)
+        canv.drawString(19 * mm, 8.5 * mm, "从需求感知，到空间陪伴，再到记忆留存")
+        canv.setFont("QY-Bold", 7)
+        canv.drawRightString(PAGE_W - 19 * mm, 8.5 * mm, f"{doc.page:02d}")
+        canv.restoreState()
+
+
+def draw_cover(canv: canvas.Canvas) -> None:
+    canv.saveState()
+    canv.setFillColor(DARK)
+    canv.rect(0, 0, PAGE_W, PAGE_H, fill=1, stroke=0)
+    canv.setFillColor(DARK_2)
+    canv.circle(PAGE_W * 0.87, PAGE_H * 0.79, 68 * mm, fill=1, stroke=0)
+    canv.setStrokeColor(HexColor("#28483D"))
+    canv.setLineWidth(0.6)
+    for radius in (30, 47, 64):
+        canv.circle(PAGE_W * 0.87, PAGE_H * 0.79, radius * mm, fill=0, stroke=1)
+
+    canv.setFont("QY-Bold", 8)
+    canv.setFillColor(GOLD)
+    canv.drawString(21 * mm, PAGE_H - 24 * mm, "AI INNOVATION COMPETITION · PROJECT PLAN")
+    canv.setStrokeColor(GOLD)
+    canv.setLineWidth(1.2)
+    canv.line(21 * mm, PAGE_H - 29 * mm, 53 * mm, PAGE_H - 29 * mm)
+
+    canv.setFillColor(CREAM)
+    canv.setFont("QY-Black", 31)
+    canv.drawString(21 * mm, PAGE_H - 68 * mm, "奇遇AI")
+    canv.setFont("QY-Black", 22)
+    canv.drawString(21 * mm, PAGE_H - 82 * mm, "全周期空间智能动物Agent")
+    canv.setFont("QY", 11.5)
+    canv.setFillColor(HexColor("#B9C9C2"))
+    canv.drawString(21 * mm, PAGE_H - 94 * mm, "主题乐园智慧伴游与游后记忆增长方案")
+
+    phase_y = PAGE_H - 118 * mm
+    phase_names = [("01", "游前感知", GOLD), ("02", "游中沉浸", MINT), ("03", "游后留存", PURPLE)]
+    for idx, (num, label, color) in enumerate(phase_names):
+        x = 21 * mm + idx * 48 * mm
+        canv.setStrokeColor(color)
+        canv.setLineWidth(1)
+        canv.roundRect(x, phase_y, 41 * mm, 16 * mm, 4 * mm, fill=0, stroke=1)
+        canv.setFont("QY-Bold", 7)
+        canv.setFillColor(color)
+        canv.drawString(x + 4 * mm, phase_y + 9.8 * mm, num)
+        canv.setFont("QY-Bold", 9.4)
+        canv.setFillColor(CREAM)
+        canv.drawString(x + 4 * mm, phase_y + 4 * mm, label)
+
+    image_paths = [
+        PROJECT / "public" / "companions" / "panda-selection.png",
+        PROJECT / "public" / "companions" / "giraffe-selection.png",
+        PROJECT / "public" / "companions" / "elephant-selection.png",
+    ]
+    image_xs = [111 * mm, 139 * mm, 165 * mm]
+    for path, x in zip(image_paths, image_xs):
+        if path.exists():
+            canv.drawImage(str(path), x, 33 * mm, width=40 * mm, height=73 * mm, preserveAspectRatio=True, mask="auto", anchor="s")
+
+    canv.setFillColor(HexColor("#0E2B22"))
+    canv.roundRect(21 * mm, 25 * mm, 90 * mm, 37 * mm, 3 * mm, fill=1, stroke=0)
+    canv.setFont("QY-Bold", 7.4)
+    canv.setFillColor(GOLD)
+    canv.drawString(27 * mm, 51 * mm, "CORE IDEA")
+    cover_text = "让AI不只回答问题，\n而是感知需求、理解空间、持续陪伴，\n并把一次游园转化为值得珍藏的长期记忆。"
+    text_obj = canv.beginText(27 * mm, 43 * mm)
+    text_obj.setFont("QY", 9)
+    text_obj.setFillColor(CREAM)
+    text_obj.setLeading(14)
+    for line in cover_text.splitlines():
+        text_obj.textLine(line)
+    canv.drawText(text_obj)
+
+    canv.setFont("QY", 7)
+    canv.setFillColor(HexColor("#789288"))
+    canv.drawString(21 * mm, 13 * mm, "VERSION 1.0 · 2026.07")
+    canv.drawRightString(PAGE_W - 21 * mm, 13 * mm, "奇遇AI项目组")
+    canv.restoreState()
+
+
+class AccentRule(Flowable):
+    def __init__(self, color=GOLD, width=42 * mm):
+        super().__init__()
+        self.height = 4 * mm
+        self.color = color
+        self.rule_width = width
+
+    def draw(self):
+        self.canv.setStrokeColor(self.color)
+        self.canv.setLineWidth(2.2)
+        self.canv.line(0, self.height / 2, self.rule_width, self.height / 2)
+
+
+class ThreePhaseFlow(Flowable):
+    def __init__(self):
+        super().__init__()
+        self.width = 172 * mm
+        self.height = 44 * mm
+
+    def draw(self):
+        c = self.canv
+        phases = [
+            ("01", "游前感知", "画像 · 计划 · 预热", GOLD),
+            ("02", "游中沉浸", "位置 · 互动 · 调度", MINT),
+            ("03", "游后留存", "回忆 · 分享 · 复游", PURPLE),
+        ]
+        box_w = 48 * mm
+        gap = 14 * mm
+        for i, (num, title, sub, color) in enumerate(phases):
+            x = i * (box_w + gap)
+            c.setFillColor(colors.white)
+            c.setStrokeColor(color)
+            c.setLineWidth(1.1)
+            c.roundRect(x, 7 * mm, box_w, 30 * mm, 4 * mm, fill=1, stroke=1)
+            c.setFillColor(color)
+            c.setFont("QY-Bold", 7)
+            c.drawString(x + 5 * mm, 29 * mm, num)
+            c.setFillColor(DARK_2)
+            c.setFont("QY-Bold", 11)
+            c.drawString(x + 5 * mm, 20.5 * mm, title)
+            c.setFillColor(MUTED)
+            c.setFont("QY", 6.8)
+            c.drawString(x + 5 * mm, 13 * mm, sub)
+            if i < 2:
+                ax = x + box_w + 3 * mm
+                c.setStrokeColor(LINE)
+                c.setLineWidth(1)
+                c.line(ax, 22 * mm, ax + 8 * mm, 22 * mm)
+                c.line(ax + 6 * mm, 24 * mm, ax + 8 * mm, 22 * mm)
+                c.line(ax + 6 * mm, 20 * mm, ax + 8 * mm, 22 * mm)
+
+
+class DualAgentDiagram(Flowable):
+    def __init__(self):
+        super().__init__()
+        self.width = 172 * mm
+        self.height = 77 * mm
+
+    def draw_box(self, c, x, y, w, h, title, subtitle, fill, stroke):
+        c.setFillColor(fill)
+        c.setStrokeColor(stroke)
+        c.setLineWidth(0.9)
+        c.roundRect(x, y, w, h, 4 * mm, fill=1, stroke=1)
+        c.setFillColor(DARK_2)
+        c.setFont("QY-Bold", 10)
+        c.drawString(x + 5 * mm, y + h - 9 * mm, title)
+        c.setFillColor(MUTED)
+        c.setFont("QY", 6.8)
+        c.drawString(x + 5 * mm, y + 6 * mm, subtitle)
+
+    def draw(self):
+        c = self.canv
+        center_x = 59 * mm
+        self.draw_box(c, center_x, 46 * mm, 54 * mm, 22 * mm, "全局调度 Agent", "路线最优 · 动态改线 · 资源衔接", GOLD_SOFT, GOLD)
+        animal_names = ["熊猫团团", "白虎凯凯", "考拉悠米", "大象澜澜", "长颈鹿长乐", "猩猩阿悟"]
+        colors_list = [GOLD, CORAL, GREEN, BLUE, HexColor("#D98F29"), PURPLE]
+        for i, (name, color) in enumerate(zip(animal_names, colors_list)):
+            x = (i % 3) * 58 * mm
+            y = 4 * mm + (1 - i // 3) * 20 * mm
+            self.draw_box(c, x, y, 52 * mm, 15 * mm, name, "人格 · 科普 · 任务 · 记忆", colors.white, color)
+            c.setStrokeColor(LINE)
+            c.setLineWidth(0.6)
+            c.line(center_x + 27 * mm, 46 * mm, x + 26 * mm, y + 15 * mm)
+
+
+class FlywheelDiagram(Flowable):
+    def __init__(self):
+        super().__init__()
+        self.width = 172 * mm
+        self.height = 70 * mm
+
+    def draw(self):
+        c = self.canv
+        cx, cy = 86 * mm, 34 * mm
+        c.setFillColor(DARK_2)
+        c.circle(cx, cy, 17 * mm, fill=1, stroke=0)
+        c.setFillColor(CREAM)
+        c.setFont("QY-Bold", 10)
+        c.drawCentredString(cx, cy + 2 * mm, "游后记忆")
+        c.setFont("QY", 6.5)
+        c.setFillColor(GOLD_SOFT)
+        c.drawCentredString(cx, cy - 5 * mm, "增长引擎")
+        nodes = [
+            (cx, cy + 29 * mm, "真实旅程数据", GREEN),
+            (cx + 58 * mm, cy + 8 * mm, "内容生成与分享", PURPLE),
+            (cx + 35 * mm, cy - 25 * mm, "商品与会员转化", CORAL),
+            (cx - 35 * mm, cy - 25 * mm, "长期伙伴关系", GOLD),
+            (cx - 58 * mm, cy + 8 * mm, "复游与新任务", BLUE),
+        ]
+        for x, y, label, color in nodes:
+            c.setFillColor(colors.white)
+            c.setStrokeColor(color)
+            c.roundRect(x - 23 * mm, y - 7 * mm, 46 * mm, 14 * mm, 3 * mm, fill=1, stroke=1)
+            c.setFillColor(DARK_2)
+            c.setFont("QY-Bold", 7.7)
+            c.drawCentredString(x, y - 1.5 * mm, label)
+            c.setStrokeColor(LINE)
+            c.line(cx, cy, x, y)
+
+
+def para(text: str, style="BodyCN") -> Paragraph:
+    return Paragraph(ptext(text), styles[style])
+
+
+def h1(text: str) -> list:
+    return [CondPageBreak(46 * mm), Paragraph(text, styles["H1CN"]), AccentRule()]
+
+
+def h2(text: str) -> Paragraph:
+    return Paragraph(text, styles["H2CN"])
+
+
+def h3(text: str) -> Paragraph:
+    return Paragraph(text, styles["H3CN"])
+
+
+def bullets(items: Sequence[str], level: int = 0) -> ListFlowable:
+    return ListFlowable(
+        [ListItem(Paragraph(item, styles["BodyCN"]), leftIndent=5 * mm) for item in items],
+        bulletType="bullet",
+        start="circle",
+        leftIndent=(6 + level * 4) * mm,
+        bulletFontName="QY-Bold",
+        bulletFontSize=6,
+        bulletColor=GREEN,
+        spaceAfter=5,
+    )
+
+
+def callout(title: str, text: str, accent=GOLD) -> Table:
+    table = Table(
+        [[Paragraph(title, styles["CardTitle"]), Paragraph(text, styles["CardBody"])]],
+        colWidths=[37 * mm, 132 * mm],
+        hAlign="LEFT",
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("BOX", (0, 0), (-1, -1), 0.6, LINE),
+        ("LINEBEFORE", (0, 0), (0, -1), 3, accent),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    return table
+
+
+def cards(items: Sequence[tuple[str, str]], columns=3, accents: Sequence | None = None) -> Table:
+    accents = accents or [GOLD, GREEN, PURPLE, CORAL, BLUE, GOLD]
+    rows = []
+    for i in range(0, len(items), columns):
+        row = []
+        for j in range(columns):
+            idx = i + j
+            if idx < len(items):
+                title, body = items[idx]
+                row.append([
+                    Paragraph(title, styles["CardTitle"]),
+                    Paragraph(body, styles["CardBody"]),
+                    accents[idx % len(accents)],
+                ])
+            else:
+                row.append(None)
+        rows.append(row)
+
+    widths = [169 * mm / columns] * columns
+    table_data = []
+    for row in rows:
+        cells = []
+        for cell in row:
+            if cell is None:
+                cells.append("")
+            else:
+                title, body, _ = cell
+                cells.append([title, Spacer(1, 2 * mm), body])
+        table_data.append(cells)
+    table = Table(table_data, colWidths=widths, hAlign="LEFT")
+    style_cmds = [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]
+    table.setStyle(TableStyle(style_cmds))
+    return table
+
+
+def data_table(headers: Sequence[str], rows: Sequence[Sequence[str]], widths: Sequence[float] | None = None) -> Table:
+    data = [[Paragraph(h, styles["CardTitle"]) for h in headers]]
+    for row in rows:
+        data.append([Paragraph(str(cell), styles["CardBody"]) for cell in row])
+    table = Table(data, colWidths=widths, repeatRows=1, hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), DARK_2),
+        ("TEXTCOLOR", (0, 0), (-1, 0), CREAM),
+        ("FONTNAME", (0, 0), (-1, 0), "QY-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, HexColor("#F7F4EC")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    return table
+
+
+def companion_grid() -> Table:
+    companions = [
+        ("panda-selection.png", "熊猫团团", "温和耐心 · 竹林观察"),
+        ("tiger-selection.png", "白虎凯凯", "果断敏锐 · 猛兽追踪"),
+        ("koala-selection.png", "考拉悠米", "松弛细心 · 慢生活研究"),
+        ("elephant-selection.png", "大象澜澜", "稳重可靠 · 象群守护"),
+        ("giraffe-selection.png", "长颈鹿长乐", "视野开阔 · 高处发现"),
+        ("gorilla-selection.png", "猩猩阿悟", "机灵好奇 · 森林解谜"),
+    ]
+    rows = []
+    for i in range(0, 6, 3):
+        row = []
+        for filename, name, label in companions[i:i + 3]:
+            path = PROJECT / "public" / "companions" / filename
+            image = Image(str(path), width=34 * mm, height=49 * mm, kind="proportional")
+            row.append([image, Paragraph(name, styles["CardTitle"]), Paragraph(label, styles["CardBody"])])
+        rows.append(row)
+    table = Table(rows, colWidths=[56 * mm] * 3, rowHeights=[68 * mm, 68 * mm], hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("BOX", (0, 0), (-1, -1), 0.5, LINE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, LINE),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    return table
+
+
+def build_story() -> list:
+    story: list = [Spacer(1, 1), PageBreak()]
+
+    # Executive summary
+    story += h1("执行摘要")
+    story.append(para("“奇遇AI”是一套面向主题乐园场景的全周期智慧伴游方案。项目以可持续陪伴的动物Agent为核心，将游前需求感知与路线规划、游中位置触发与动态调度、游后AIGC记忆内容生成连接成一个完整闭环。它既解决游客的信息过载、路线折返、排队等待和科普互动浅等问题，也为园区建立IP关系、内容传播、二次消费和复游运营的新入口。", "LeadCN"))
+    story.append(ThreePhaseFlow())
+    story.append(Spacer(1, 5 * mm))
+    story.append(callout("一句话定位", "一个能理解游客、感知空间、动态决策并持续记忆的动物伙伴系统。它不是传统地图上的AI问答框，而是贯穿整段旅程的服务与情感中枢。", GOLD))
+    story.append(Spacer(1, 5 * mm))
+    story.append(cards([
+        ("需求价值", "降低攻略、路线、排队和临时决策成本，让家庭游客更轻松地完成一次高质量游园。"),
+        ("体验价值", "动物IP不再只是展示素材，而成为会主动迎接、能解释现场、会记住游客的数字生命。"),
+        ("经营价值", "把路线、互动、徽章和照片转化为可分享内容、个性商品、会员资产与复游理由。"),
+    ]))
+    story.append(Spacer(1, 5 * mm))
+    story.append(para("当前项目已形成可运行的移动端全栈原型：支持六位动物伙伴、七轮游前对话、园区路网规划、电子围栏模拟、展区任务、动物知识问答、动态改线、旅程事件记录、回忆星册、H5回忆短片、奇遇票根和照片风格化接口。项目适合先从少量明星动物展区开展试点，再逐步接入真实客流、交易与会员数据。"))
+
+    # TOC
+    story.append(PageBreak())
+    story += h1("目录")
+    toc = TableOfContents()
+    toc.levelStyles = [
+        ParagraphStyle(name="TOC0", fontName="QY-Bold", fontSize=8.7, leading=13.4, leftIndent=0, textColor=DARK_2, spaceBefore=2),
+        ParagraphStyle(name="TOC1", fontName="QY", fontSize=7.1, leading=10.6, leftIndent=8 * mm, textColor=MUTED),
+    ]
+    story.append(toc)
+    story.append(PageBreak())
+
+    # 1
+    story += h1("1. 项目概述")
+    story.append(h2("1.1 项目名称与核心命题"))
+    story.append(para("项目名称：奇遇AI - 全周期空间智能动物Agent。项目面向大型主题乐园、动物园、海洋馆及综合度假区，尝试把人工智能从被动的信息查询工具，升级为能够感知游客需求、理解现场空间、动态调整行程并延续情感记忆的全周期伙伴。"))
+    story.append(para("核心命题是：当动物IP具有可持续的人格、知识、位置意识和旅程记忆后，园区服务就不再是分散的地图、导览、排队、餐饮和纪念品功能，而可以围绕同一位动物伙伴形成统一体验。"))
+    story.append(h2("1.2 项目目标"))
+    story.append(bullets([
+        "为游客提供真正符合同行结构、游玩节奏、时间和兴趣约束的个性化路线。",
+        "通过空间触发和动物Agent互动，提高科普内容的参与感、情绪价值与记忆度。",
+        "利用动态调度减少无效折返，并在拥堵、疲劳、天气变化等场景中及时重排行程。",
+        "将游中产生的足迹、对话、任务、徽章和照片转化为游后内容与数字资产。",
+        "为餐饮、零售、酒店、纪念品、会员与复游运营建立自然的转化入口。",
+    ]))
+    story.append(h2("1.3 项目边界"))
+    story.append(data_table(
+        ["层级", "当前原型", "真实落地后的扩展"],
+        [
+            ["游客体验", "完整覆盖游前、游中、游后主要流程", "与门票、酒店、会员账户和同行人体系打通"],
+            ["园区数据", "地图与模拟排队、开放时间、事件数据", "接入实时客流、项目状态、演出、餐饮与库存"],
+            ["空间感知", "模拟定位与电子围栏交互", "手机定位、蓝牙信标、二维码和NFC组合识别"],
+            ["内容生成", "票根、H5短片、照片风格化", "视频级AIGC、家庭成长报告和多平台内容模板"],
+            ["商业能力", "推荐和内容展示原型", "下单、履约、会员积分、复游权益与经营分析"],
+        ],
+        widths=[28 * mm, 66 * mm, 75 * mm],
+    ))
+
+    # 2
+    story += h1("2. 市场背景与项目机会")
+    story.append(h2("2.1 体验升级正在替代单纯设施竞争"))
+    story.append(para("项目调研材料显示，中国主题公园市场已经进入体验升级阶段。游客不再只关注是否拥有大型设施，也开始重视路线是否适合自己、等待时间是否可控、互动内容是否有趣，以及游玩之后是否能留下具有个人意义的纪念。亲子家庭和年轻游客尤其愿意为独特、可分享、具有IP情感连接的内容投入更多时间与消费。"))
+    story.append(h2("2.2 当前供给仍以工具型服务为主"))
+    story.append(data_table(
+        ["现有形态", "主要能力", "普遍不足"],
+        [
+            ["主题乐园官方App", "地图、票务、排队、预约、活动信息", "功能彼此分散，缺少主动陪伴和全周期记忆"],
+            ["AI语音导览", "固定点位讲解、语音问答", "内容多为单向输出，难以理解实时位置与个人偏好"],
+            ["通用旅行助手", "攻略问答、行程建议", "不了解具体园区路网、运营状态与现场服务"],
+            ["AR互动产品", "合影、滤镜、单点任务", "多为短时娱乐，没有形成持续角色关系和经营闭环"],
+        ],
+        widths=[38 * mm, 59 * mm, 72 * mm],
+    ))
+    story.append(h2("2.3 项目机会"))
+    story.append(callout("稳健的创新定位", "本项目聚焦“全周期 + 空间感知 + 动物IP人格化 + 动态调度 + 游后记忆经营”的组合创新。与其强调无法充分证明的绝对首创，更适合表述为：面向主题乐园的AI原生体验探索，并形成具有明确差异化的系统方案。", GREEN))
+    story.append(Spacer(1, 5 * mm))
+    story.append(cards([
+        ("空间智能", "把位置从导航坐标变成内容触发条件，让不同展区的角色、知识和任务按真实抵达依次苏醒。"),
+        ("角色智能", "将动物科普知识与独立人设结合，使互动兼具准确性、情绪温度和可识别的IP性格。"),
+        ("经营智能", "让园区的服务与商品基于真实行程需求出现，而不是以广告弹窗打断体验。"),
+    ]))
+
+    # 3
+    story += h1("3. 用户需求与核心痛点")
+    story.append(h2("3.1 目标用户"))
+    story.append(cards([
+        ("亲子家庭", "关心儿童体力、科普价值、安全、用餐和休息，希望减少临时决策与无效步行。"),
+        ("年轻游客", "重视独特体验、拍照、打卡、角色互动、社交分享和个性化纪念。"),
+        ("情侣与朋友", "希望路线紧凑但不机械，能兼顾共同兴趣、演出、拍照和餐饮节奏。"),
+        ("独自游园者", "需要陪伴感、清晰导航、即时问答，以及对陌生环境的确定性。"),
+        ("研学与学校团体", "需要年龄适配的科普任务、学习成果和可回顾的成长记录。"),
+        ("复游客", "希望发现上次未完成内容，与熟悉的动物伙伴延续关系。"),
+    ], columns=3))
+    story.append(h2("3.2 全流程痛点"))
+    story.append(data_table(
+        ["阶段", "外显痛点", "深层需求", "项目回应"],
+        [
+            ["游前", "攻略信息过载、路线难以取舍", "有人真正理解家庭与时间约束", "七轮对话建模画像，生成可执行路线"],
+            ["游中", "排队、折返、疲劳、计划变化", "有人根据当前位置持续做判断", "实时路线、动态重排与服务节点衔接"],
+            ["互动", "科普单向、动物状态具有偶然性", "在现场获得有回应的探索体验", "展区动物Agent、知识问答和观察任务"],
+            ["游后", "照片散落、记忆碎片化", "把当天真实经历整理成故事", "足迹、事件、徽章、票根与回忆短片"],
+            ["长期", "离园后关系中断、缺少复游理由", "继续关注喜欢的动物与未完成内容", "图鉴、伙伴记忆、复游任务和会员权益"],
+        ],
+        widths=[19 * mm, 44 * mm, 48 * mm, 58 * mm],
+    ))
+    story.append(h2("3.3 典型用户故事"))
+    story.append(callout("亲子家庭的一天", "两位成人带一名儿童入园。游前选择熊猫团团，系统根据孩子下午容易疲劳的情况安排较短步行路线；游中在第二个展区出现拥堵时主动把后续站点调换，并插入附近休息点；孩子完成观察任务获得徽章；离园后系统生成成长记录、旅行短片和专属票根。", CORAL))
+
+    # 4
+    story += h1("4. 产品定位与核心创新")
+    story.append(h2("4.1 从功能集合到统一伙伴"))
+    story.append(para("传统智慧园区通常按业务功能组织：地图属于地图、科普属于导览、消费属于商城、会员属于运营。奇遇AI改用“伙伴关系”组织体验。游客面对的是同一位动物伙伴，系统在背后调动路线、知识、服务、内容和商品能力。这样既减少操作学习成本，也让体验具有连续情绪。"))
+    story.append(h2("4.2 双层Agent协同架构"))
+    story.append(DualAgentDiagram())
+    story.append(Spacer(1, 4 * mm))
+    story.append(data_table(
+        ["角色", "主要职责", "输入", "输出"],
+        [
+            ["全局调度Agent", "行程规划、动态重排、资源协调、原因解释", "游客画像、路网、时间、客流、天气、项目状态", "路线、时间轴、调整方案、服务推荐"],
+            ["动物Agent", "角色互动、科普问答、观察任务、情绪陪伴", "展区知识、角色设定、年龄、位置、任务进度", "欢迎语、回答、任务、徽章、伙伴留言"],
+            ["内容生成Agent", "组织游后故事与视觉内容", "足迹、事件、徽章、照片、伙伴关系", "短片、票根、图鉴、分享文案、纪念品素材"],
+        ],
+        widths=[32 * mm, 52 * mm, 47 * mm, 38 * mm],
+    ))
+    story.append(h2("4.3 五项差异化能力"))
+    story.append(bullets([
+        "连续画像：游前选择不会在入园后失效，而会影响路线、表达深度、任务和游后内容。",
+        "空间唤醒：只有在游客真实接近展区时，相应伙伴与内容才出现，增强抵达仪式感。",
+        "确定性决策：地图距离、开放时间和路线优化由算法计算，大模型不编造关键事实。",
+        "情感化知识：同一知识由不同角色以不同语气表达，并根据儿童或成人调整深度。",
+        "记忆型增长：游中数据自然生成票根、短片、图鉴和复游任务，连接内容传播与商业转化。",
+    ]))
+
+    # 5
+    story += h1("5. 全周期产品体验")
+    story.append(ThreePhaseFlow())
+    story.append(h2("5.1 全周期状态主线"))
+    story.append(data_table(
+        ["状态对象", "游前产生", "游中更新", "游后使用"],
+        [
+            ["游客画像", "同行、节奏、时间、偏好、餐饮、特殊需求", "临时疲劳、拥堵反馈、实际选择", "内容表达、复游推荐、会员偏好"],
+            ["行程计划", "计划路线、时间轴、备选点", "完成站点、跳过站点、动态改线", "计划与实际对比、路线故事"],
+            ["伙伴关系", "选择首位伙伴、建立初始连接", "解锁展区伙伴、完成互动", "伙伴总结、好感度、持续推送"],
+            ["探索成果", "预设目标", "任务、问答、徽章、照片、视频", "图鉴、短片、票根和成长报告"],
+        ],
+        widths=[31 * mm, 46 * mm, 47 * mm, 45 * mm],
+    ))
+    story.append(h2("5.2 产品入口设计"))
+    story.append(para("首页用“三段旅程”代替传统功能宫格：奇遇启程、园中探险、回忆星册。游客既可以从完整流程开始，也可以在已经到园区时直接进入实时地图，或在旅程结束后返回历史票根册。阶段状态保存在本机，方便演示和连续体验。"))
+
+    # 6 pretrip
+    story += h1("6. 游前感知：把期待变成可执行计划")
+    story.append(h2("6.1 六位奇遇伙伴"))
+    story.append(companion_grid())
+    story.append(h2("6.2 七轮轻量对话"))
+    story.append(data_table(
+        ["轮次", "采集内容", "对路线的影响"],
+        [
+            ["1", "同行结构与人数", "决定表达方式、家庭节点和可接受强度"],
+            ["2", "游玩节奏", "决定目标站点数量、停留系数和步行速度"],
+            ["3", "入园与离园时间", "形成可用时间窗口"],
+            ["4", "动物优先级", "决定必须保留与可舍弃站点"],
+            ["5", "餐饮偏好", "选择餐厅并寻找最少增加步行的位置"],
+            ["6", "补充需求", "记录疲劳、婴童、少走回头路等自由约束"],
+            ["7", "确认", "生成路线，并允许切换高峰、雨天等场景重算"],
+        ],
+        widths=[18 * mm, 65 * mm, 86 * mm],
+    ))
+    story.append(h2("6.3 路线生成逻辑"))
+    story.append(para("原型把园区入口、六个动物展区和餐厅构成路网。规划器先计算任意节点之间的最短距离，再枚举候选动物顺序和餐厅插入位置；每条路线都根据步行距离、排队时间、开放时间、游玩节奏和停留时长进行模拟。只有能在离园时间前完成且不超过点位关闭时间的路线才会被保留。"))
+    story.append(callout("可靠性原则", "路线事实由规则与图算法计算，大模型只负责角色化回应和摘要润色；模型不可新增景点、距离、排队数据、预约或价格。无AI密钥时系统自动使用本地模板，核心功能仍可运行。", GREEN))
+    story.append(h2("6.4 游前输出"))
+    story.append(bullets([
+        "带推荐理由的完整时间轴。",
+        "原始导览图或矢量地图上的游览顺序。",
+        "预计步行距离、步行时间、排队时间与总用时。",
+        "用餐与休息节点。",
+        "未被排入动物及原因。",
+        "高峰、常规、雨天等场景下的一键重算。",
+    ]))
+
+    # 7 inpark
+    story += h1("7. 游中沉浸：让位置成为故事入口")
+    story.append(h2("7.1 实时地图与空间感知"))
+    map_path = PROJECT / "public" / "maps" / "qingcui-zoo-guide.png"
+    if map_path.exists():
+        img = Image(str(map_path), width=154 * mm, height=88 * mm, kind="proportional")
+        img.hAlign = "CENTER"
+        story.append(img)
+        story.append(Spacer(1, 2 * mm))
+        story.append(para("园区地图与路网是全局调度的空间底座。原型支持地图缩放、拖动、展区选择、当前位置投影、计划路线、实际足迹和服务设施导航。", "SmallCN"))
+    story.append(para("系统根据手机位置计算游客与动物展区的距离。当游客进入目标展区约50米范围后，对应的区域伙伴、科普知识、观察任务与媒体记录入口才会被解锁。真实部署时可用蓝牙信标提升室内或遮挡区域精度，并保留二维码与NFC作为备用触发方式。"))
+    story.append(h2("7.2 展区动物伙伴与科普任务"))
+    story.append(data_table(
+        ["展区", "伙伴", "观察任务示例", "核心知识"],
+        [
+            ["熊猫", "团团", "前掌观察挑战", "伪拇指、进食与休息节奏"],
+            ["长颈鹿", "长乐", "高处取食观察", "长舌、取食方式与适应性"],
+            ["猩猩", "阿悟", "社交信号推理", "表情、动作、工具与群体交流"],
+            ["白虎", "凯凯", "虎纹光影推理", "条纹隐蔽与个体识别"],
+            ["大象", "澜澜", "象鼻动作判断", "取水、取食、嗅觉与交流"],
+            ["考拉", "悠米", "能量策略推理", "桉树叶、长时间休息与节能"],
+        ],
+        widths=[27 * mm, 27 * mm, 55 * mm, 60 * mm],
+    ))
+    story.append(h2("7.3 动态改线"))
+    story.append(cards([
+        ("拥堵重排", "将高排队站点移动到后续低峰时间，或优先推荐邻近替代点。"),
+        ("跳过下一站", "游客明确不想前往某处时，保留已完成节点并重新组织剩余路线。"),
+        ("就近前往", "从当前位置计算最近候选点，而不是简单按照原计划继续。"),
+        ("疲劳休息", "把休息节点插入旅程，保持原路线可恢复，避免系统替游客强制决定。"),
+        ("服务导航", "识别餐厅、洗手间、母婴室等需求，计算真实步行路线并显示在地图上。"),
+        ("异常兜底", "项目临时关闭、天气变化或紧急事件时提供替代路线与人工服务入口。"),
+    ], columns=3))
+    story.append(h2("7.4 游中沉淀的数据资产"))
+    story.append(para("游中所有关键动作会转化为结构化事件，包括旅程开始、抵达展区、解锁伙伴、完成任务、获得徽章、修改路线、开始休息、添加照片或视频、发生对话和结束旅程。这些事件既支撑游后内容生成，也是后续评估路线质量、互动深度和服务转化的基础。"))
+
+    # 8 posttrip
+    story += h1("8. 游后留存：让每一步探索都有回响")
+    story.append(para("游后是本项目的核心增长层。它不是把游客照片简单排成相册，而是把真实旅程重新组织为可以回看、编辑、分享、收藏和继续消费的个人故事。前两个阶段创造体验，游后负责证明体验、延长体验并把情绪价值转化为长期关系。", "LeadCN"))
+    story.append(FlywheelDiagram())
+    story.append(h2("8.1 游后信息架构"))
+    story.append(data_table(
+        ["栏目", "内容", "用户价值"],
+        [
+            ["路线故事", "计划路线、实际足迹、跳过与新增站点、改线原因", "理解当天真正走过的路"],
+            ["发生过的事", "按时间排列的抵达、任务、徽章、互动与变化", "将碎片行为组织成叙事"],
+            ["伙伴总结", "动物伙伴对当天旅程的个性化回顾与寄语", "形成情感收束"],
+            ["观察证明", "展区徽章、任务与动物图鉴", "把游玩转化为可见的学习成果"],
+            ["现场光线", "游客主动保存的照片和视频", "保存真实人物与场景素材"],
+            ["回忆短片", "路线、徽章、伙伴留言与票根组成的15-30秒叙事", "降低整理和分享成本"],
+            ["奇遇票根", "封面、旅程信息、伙伴、统计与留言", "形成可导出、可收藏、可商品化的核心纪念物"],
+        ],
+        widths=[30 * mm, 78 * mm, 61 * mm],
+    ))
+    story.append(h2("8.2 路线故事：计划与意外同时被记住"))
+    story.append(para("系统同时保留游前计划路线和游中实际足迹。因拥堵、天气、疲劳或个人选择造成的变化不会被判断为失败，而会进入当天的故事：原本准备去哪里、实际去了哪里、为什么改线、走了多远、哪些临时决定变成了惊喜。路线因此从一条导航线转化为具有因果关系的旅行叙事。"))
+    story.append(h2("8.3 成就徽章与动物图鉴"))
+    story.append(para("每枚徽章都对应真实抵达或完成的观察任务，而不是无意义签到。它可以记录儿童主动观察、回答问题和理解动物习性的过程。长期运营时，徽章可进一步构成个人动物图鉴、家庭研学成长报告和跨园区数字身份。未完成图鉴则自然成为下一次游园的任务线索。"))
+    story.append(h2("8.4 照片与媒体素材"))
+    story.append(para("原型支持在展区拍摄或从本机上传照片、视频，并将媒体与当前旅程和展区关联。结构化元数据保存在旅程记录中，实际媒体文件进入浏览器IndexedDB。即使游客没有上传任何照片，系统也可以使用路线、徽章、伙伴形象和园区插画生成基础回顾，保证内容不出现空白。"))
+    story.append(h2("8.5 AIGC回忆短片"))
+    story.append(para("回忆短片采用“出发 - 抵达 - 互动 - 变化 - 完成”的叙事顺序。它不只拼接照片，而是从旅程事件中选择有故事性的节点：选择伙伴、生成路线、抵达明星动物区、完成观察任务、因拥堵改线、获得徽章，并以伙伴寄语结束。当前原型已经实现H5动态回忆播放；真实落地后可升级为高清视频、多音乐风格和家庭共同编辑版本。"))
+    story.append(h2("8.6 专属奇遇票根"))
+    story.append(cards([
+        ("四类模板", "经典纪念、伙伴主题、探索印章和远征风格，适配横版与竖版视觉。"),
+        ("可编辑内容", "旅程标题、伙伴留言、封面照片、照片位置、主题风格和统计信息。"),
+        ("真实数据", "日期、到访展区、任务、徽章、步行里程和路线完成率来自旅程快照。"),
+        ("照片风格化", "调用兼容Images Edits的接口，把真实照片生成清晰、明亮的16-bit像素纪念照。"),
+        ("导出与分享", "支持横版票根、故事长图下载，并调用设备原生分享能力。"),
+        ("实体延展", "票根视觉可继续用于明信片、徽章、纪念册、服装和摆件。"),
+    ], columns=3))
+    story.append(h2("8.7 从一次游玩到长期陪伴"))
+    story.append(para("旅程结束后，动物伙伴可以继续保留徽章、图鉴、互动进度和游客主动保留的偏好。后续运营可围绕喜欢动物的成长动态、节日问候、新展区、新成员、公益活动和未完成图鉴生成内容。这样，离园不是关系终点，而是下一次奇遇的起点。"))
+    story.append(callout("游后的战略价值", "体验价值只有在被记住、被表达和被再次触发时，才会转化为品牌价值。游后模块把游客的一天变成个人内容资产，也把园区的一次服务变成可持续的关系资产。", PURPLE))
+
+    # 9 architecture
+    story += h1("9. 技术方案与系统架构")
+    story.append(h2("9.1 当前原型技术栈"))
+    story.append(data_table(
+        ["层级", "技术", "职责"],
+        [
+            ["前端", "Nuxt 4、Vue 3、Vue Router", "移动端H5/PWA界面、阶段路由、交互与本地状态"],
+            ["服务端", "Nuxt Nitro、Node.js", "API、参数校验、AI代理调用、图片生成代理"],
+            ["文本模型", "DeepSeek或OpenAI Chat Completions兼容服务", "角色化回复、路线摘要、园中知识回答"],
+            ["路线算法", "距离矩阵、Floyd-Warshall、Dijkstra、排列优化", "游前站点排序、当前位置导航、动态改线"],
+            ["空间能力", "GIS坐标、Haversine距离、50米电子围栏", "定位投影、展区匹配、空间触发"],
+            ["内容数据", "园区目录、展区知识库、角色配置、任务配置", "事实约束、科普回答和互动内容"],
+            ["本地存储", "localStorage、IndexedDB", "旅程记录、状态恢复、照片与视频保存"],
+            ["图像生成", "OpenAI-compatible Images Edits", "真实照片到像素纪念照的图生图转换"],
+        ],
+        widths=[27 * mm, 61 * mm, 81 * mm],
+    ))
+    story.append(h2("9.2 技术工作流"))
+    story.append(data_table(
+        ["步骤", "处理方式", "可靠性控制"],
+        [
+            ["输入", "客户端提交画像、位置、问题或照片", "结构校验、长度限制、文件类型与大小限制"],
+            ["事实计算", "路线引擎计算距离、时间、顺序和电子围栏", "关键数字不交给大模型生成"],
+            ["知识检索", "从经过整理的展区知识与服务数据中选取上下文", "限定来源，超出范围时回退或转人工"],
+            ["模型生成", "模型根据角色人设和事实生成自然语言", "禁编价格、开放时间和动物状态；过滤提示注入"],
+            ["状态记录", "把结果写为结构化旅程事件", "保留计划快照与实际变化，支持恢复"],
+            ["游后生成", "事件、媒体和票根模板组合输出内容", "允许用户编辑与重新生成"],
+        ],
+        widths=[27 * mm, 79 * mm, 63 * mm],
+    ))
+    story.append(h2("9.3 从原型到生产系统"))
+    story.append(para("生产系统应将当前浏览器本地状态升级为账户级旅程服务，引入用户服务、实时运营数据接入层、内容知识平台、模型网关、媒体处理服务、推荐服务、商品与会员服务、监控审计和经营分析。路线引擎仍作为确定性核心，大模型通过工具调用读取授权数据，不直接访问数据库或生成未经验证的运营事实。"))
+
+    # 10 data chapter requested
+    story += h1("10. 项目落地所需数据")
+    story.append(para("项目真正落地的关键不是单纯增加模型能力，而是建立稳定、及时、可理解的数据供给。建议按照“静态空间底座 - 实时运营状态 - 游客与旅程事件 - 内容知识 - 商业与会员”五层组织数据。", "LeadCN"))
+    story.append(h2("10.1 静态空间与设施数据"))
+    story.append(data_table(
+        ["数据", "必要字段", "用途", "更新频率"],
+        [
+            ["园区地图与路网", "节点、道路、距离、坡度、无障碍属性、通行方向", "导航、最短路径、步行时间和折返优化", "道路变化时"],
+            ["展区与项目", "坐标、围栏、开放时间、推荐停留时长、适龄信息", "路线生成、空间触发和内容解锁", "每日/变更时"],
+            ["服务设施", "餐厅、洗手间、母婴室、医务室、商店、接驳点", "就近导航与服务推荐", "变更时"],
+            ["演出与活动", "场次、地点、时长、容量、入场规则", "将演出节点插入个性化时间轴", "每日"],
+        ],
+        widths=[33 * mm, 64 * mm, 48 * mm, 24 * mm],
+    ))
+    story.append(h2("10.2 实时运营数据"))
+    story.append(data_table(
+        ["数据", "粒度", "用途", "建议刷新"],
+        [
+            ["排队时长", "项目/展区", "动态分流、预测抵达时的等待成本", "1-5分钟"],
+            ["客流热力", "道路与区域", "避开拥堵、推荐低密度替代路线", "1-5分钟"],
+            ["开放与停运", "项目、道路、餐厅", "排除不可行节点并即时重排", "事件触发"],
+            ["天气与环境", "园区级/区域级", "雨天方案、高温休息和室内替代", "10-30分钟"],
+            ["餐饮状态", "余位、排号、营业、菜品", "错峰用餐与需求匹配", "5-15分钟"],
+            ["商品库存", "门店/SKU", "根据互动动物推荐附近可购商品", "5-15分钟"],
+        ],
+        widths=[35 * mm, 33 * mm, 77 * mm, 24 * mm],
+    ))
+    story.append(h2("10.3 游客画像与旅程事件"))
+    story.append(data_table(
+        ["类别", "核心字段", "使用场景"],
+        [
+            ["游前画像", "同行结构、儿童人数、节奏、时间、动物优先级、餐饮与补充需求", "初始路线和内容深度"],
+            ["实时状态", "当前位置、当前展区、已完成站点、剩余时间、疲劳与临时需求", "动态调度与服务衔接"],
+            ["互动事件", "对话、任务、答案、徽章、伙伴解锁、路线变化", "游后叙事、推荐和指标分析"],
+            ["媒体素材", "照片、视频、展区、时间、是否高光、说明文字", "回忆短片、票根和纪念品"],
+            ["长期资产", "动物图鉴、好感度、历史旅程、未完成内容、会员权益", "长期陪伴与复游推荐"],
+        ],
+        widths=[34 * mm, 81 * mm, 54 * mm],
+    ))
+    story.append(h2("10.4 动物知识与IP内容数据"))
+    story.append(bullets([
+        "物种知识：食物、习性、栖息环境、身体特征、保护级别和常见问题。",
+        "个体档案：明星动物名称、生日、家庭关系、成长故事与健康公开信息。",
+        "角色设定：伙伴性格、语气、口头习惯、视觉资产、允许与禁止的表达。",
+        "展区任务：观察目标、题目、选项、正确答案、解释、徽章与奖励。",
+        "服务知识：园区规则、设施说明、应急入口和人工服务触发条件。",
+        "内容版本：审核人、版本号、生效时间、适用年龄与下线状态。",
+    ]))
+    story.append(h2("10.5 商业与会员数据"))
+    story.append(bullets([
+        "商品目录、动物IP归属、价格、库存、门店位置、配送与自提能力。",
+        "餐饮菜单、过敏原、儿童餐、排号、预约、优惠与会员权益。",
+        "门票、酒店、交通接驳、组合套餐和可售时间。",
+        "会员等级、积分、历史权益、优惠券和复游任务。",
+        "内容商品订单、票根模板、纪念品生产状态与物流状态。",
+    ]))
+    story.append(h2("10.6 首期试点的最小数据集"))
+    story.append(callout("建议先小范围闭环", "选择3个明星动物展区 + 1条主路线 + 1个餐厅 + 2类服务设施。准备准确路网、开放时间、模拟或真实排队、3套动物知识、3个观察任务、6种动态事件、1套票根与1种照片风格化模板，即可验证从规划到游后留存的完整价值链。", GOLD))
+
+    # 11 business
+    story += h1("11. 商业模式与付费体系")
+    story.append(h2("11.1 商业逻辑"))
+    story.append(para("项目首先通过免费基础服务提高游客使用率，再在记忆内容、个性化商品、会员关系和园区运营能力上实现价值转化。付费点应出现在游客已经获得体验价值之后，避免在游前或游中频繁打断。"))
+    story.append(h2("11.2 初步付费分层"))
+    story.append(data_table(
+        ["层级", "包含内容", "建议价格思路", "目标"],
+        [
+            ["免费基础版", "游前规划、实时地图、基础互动、徽章、基础票根", "随门票或会员免费", "扩大覆盖率与数据沉淀"],
+            ["数字回忆包", "高清票根、多模板、无水印长图、精选分享文案", "约19.9-39.9元/次", "轻量内容付费"],
+            ["AIGC故事包", "照片风格化、高清回忆短片、家庭成长报告", "约49-99元/次", "高情绪价值内容"],
+            ["实体纪念品", "明信片、徽章、纪念册、服装、玩偶与摆件", "按品类约69-299元", "连接IP零售与履约"],
+            ["年度伙伴会员", "跨旅程记忆、专属故事、任务、模板和复游权益", "约99-199元/年", "建立长期关系"],
+            ["园区平台合作", "系统部署、模型与内容服务、数据分析、运营工具", "按项目/年服务费", "形成B端收入"],
+        ],
+        widths=[29 * mm, 70 * mm, 36 * mm, 34 * mm],
+    ))
+    story.append(para("以上价格仅作为首轮方案测试区间，正式定价应结合内容生成成本、商品毛利、游客支付意愿和A/B测试结果确定。首期建议不设置复杂订阅墙，优先验证“免费体验 - 票根领取 - 数字内容升级 - 实体商品”的简单漏斗。", "SmallCN"))
+    story.append(h2("11.3 多业态自然衔接"))
+    story.append(cards([
+        ("餐饮", "根据当前位置、时间、儿童和饮食需求推荐就近餐厅与错峰方案。"),
+        ("零售", "根据已互动动物、徽章和照片主题推荐相关周边，而不是泛化广告。"),
+        ("酒店", "把入住、班车、行李、休息和次日路线连接到同一旅程。"),
+        ("娱乐", "把演出、巡游、马戏和临时活动插入可执行时间轴。"),
+        ("内容", "生成朋友圈、小红书和短视频平台适配的图文与视频素材。"),
+        ("会员", "用未完成图鉴、新动物、新季节和专属任务创造复游理由。"),
+    ], columns=3))
+
+    # 12 rollout
+    story += h1("12. 落地路径与实施计划")
+    story.append(h2("12.1 分阶段推进")
+    )
+    story.append(data_table(
+        ["阶段", "周期建议", "范围", "交付成果"],
+        [
+            ["阶段一：概念验证", "0-2个月", "3个明星展区、模拟运营数据、基础票根", "验证流程可用性、互动完成率和内容生成意愿"],
+            ["阶段二：园区试点", "3-6个月", "真实路网、排队数据、定位与部分餐饮服务", "验证分流效果、路线完成率、服务点击和付费转化"],
+            ["阶段三：完整园区", "6-12个月", "六个以上展区、会员、商品、云端旅程账户", "形成完整全周期体验与经营看板"],
+            ["阶段四：跨园复制", "12个月以后", "海洋馆、动物园、其他主题乐园与度假区", "沉淀可配置的平台化产品"],
+        ],
+        widths=[35 * mm, 29 * mm, 58 * mm, 47 * mm],
+    ))
+    story.append(h2("12.2 首期试点建议"))
+    story.append(bullets([
+        "选择熊猫、长颈鹿、白虎等识别度高且内容丰富的动物展区。",
+        "保留完整游前七轮对话，但把计划站点控制在3-4个，确保体验闭环。",
+        "电子围栏采用定位 + 二维码确认的双通道，先验证触发体验。",
+        "动态事件优先验证拥堵改线、疲劳休息、就近餐饮三类高频场景。",
+        "游后以奇遇票根作为核心产物，同时测试基础版与付费升级版。",
+        "在出口或酒店设置实体票根、明信片和纪念册的转化触点。",
+    ]))
+    story.append(h2("12.3 团队角色建议"))
+    story.append(data_table(
+        ["角色", "职责"],
+        [
+            ["产品负责人", "全周期体验、需求优先级、园区协同和试点结果"],
+            ["前后端工程", "移动端、服务端、账户、数据接入、媒体与支付"],
+            ["算法与AI", "路线优化、模型网关、RAG、内容生成和评估"],
+            ["GIS与数据", "园区路网、定位、电子围栏、实时数据质量"],
+            ["动物内容专家", "知识审核、任务设计、角色设定与敏感问题规则"],
+            ["视觉与IP设计", "伙伴形象、动效、票根、短片模板和商品视觉"],
+            ["运营与商业", "活动、会员、商品、内容传播、价格测试与履约"],
+        ],
+        widths=[45 * mm, 124 * mm],
+    ))
+
+    # 13 metrics
+    story += h1("13. 运营指标与效果评估")
+    story.append(h2("13.1 北极星指标"))
+    story.append(callout("有效奇遇完成数", "完成至少一次空间触发互动，并在游后生成或保存一项记忆内容的旅程数量。该指标同时覆盖园中真实体验和游后价值留存，比单纯页面访问或对话次数更能反映项目价值。", GREEN))
+    story.append(h2("13.2 指标体系"))
+    story.append(data_table(
+        ["维度", "核心指标", "说明"],
+        [
+            ["游前", "对话完成率、计划生成率、计划分享率", "验证画像采集是否轻量且有价值"],
+            ["路线", "路线完成率、平均步行距离、折返距离、改线接受率", "验证调度是否降低决策和移动成本"],
+            ["空间互动", "电子围栏触发率、展区伙伴唤醒率、任务完成率", "验证空间内容是否被真实使用"],
+            ["知识体验", "提问率、有效回答率、人工兜底率、科普满意度", "验证知识准确性与表达质量"],
+            ["游后", "回忆星册打开率、票根生成率、短片播放率、分享率", "验证记忆产品是否产生价值"],
+            ["商业", "数字包购买率、实体商品转化、客单价、会员转化", "验证情绪价值能否形成收入"],
+            ["长期", "30/90天回访、复游意愿、复游转化、图鉴继续率", "验证伙伴关系是否延续"],
+        ],
+        widths=[30 * mm, 74 * mm, 65 * mm],
+    ))
+    story.append(h2("13.3 项目材料中的预期目标"))
+    story.append(para("项目调研材料提出：通过动态分流使热门区平均排队时长下降20%，角色主动唤醒使科普互动频次提升15%，动物IP衍生品转化率提升10%，游客复游意愿提升9%。这些数字适合作为试点阶段的目标假设，正式项目应通过基线组、试点组和分阶段A/B测试进行验证。"))
+
+    # 14 risks
+    story += h1("14. 关键风险与应对策略")
+    story.append(data_table(
+        ["风险", "表现", "应对策略"],
+        [
+            ["实时数据不稳定", "排队、开放状态更新不及时，导致路线建议失真", "明确数据刷新频率；在界面显示更新时间；提供保守策略和人工确认"],
+            ["定位精度不足", "GPS漂移造成误触发或无法解锁", "采用定位、蓝牙信标、二维码、NFC多通道；设置缓冲区和确认步骤"],
+            ["模型回答失真", "编造价格、动物状态或园区规则", "事实由工具与知识库提供；强约束提示词；敏感问题转官方说明"],
+            ["路线优化规模增长", "展区和约束增多后全排列计算成本过高", "从枚举升级到启发式搜索、整数规划或带时间窗的路径算法"],
+            ["角色内容同质化", "六位伙伴只有名称不同，体验缺乏辨识度", "建立角色圣经、专属任务、语音、动作、成长故事和质量评测"],
+            ["游后生成成本", "图片与视频生成成本影响毛利和等待时间", "基础模板本地生成；高成本能力作为付费升级；异步队列与缓存复用"],
+            ["商业触点干扰体验", "推荐过多会削弱伙伴可信度", "只在明确需求、自然节点和游后阶段出现；控制频次并解释推荐理由"],
+        ],
+        widths=[33 * mm, 62 * mm, 74 * mm],
+    ))
+
+    # 15 feasibility
+    story += h1("15. 可行性与项目价值")
+    story.append(h2("15.1 技术可行性"))
+    story.append(para("项目所需能力均以成熟技术组合为主：对话模型、知识检索、GIS路网、电子围栏、图生图、浏览器媒体处理和移动端Web技术已有明确实现路径。当前原型已经证明主要交互可以在同一Nuxt全栈应用内运行，核心路线算法不依赖模型，AI服务不可用时也能使用模板降级。"))
+    story.append(h2("15.2 业务可行性"))
+    story.append(para("主题乐园拥有现成的地图、动物知识、IP角色、门票、餐饮、零售、酒店和会员场景。奇遇AI不需要重新创造业务，而是用同一位伙伴把这些业务按游客真实需求重新组织。首期可从少量展区和一类游后纪念内容开始，投入范围可控，也容易获得明确试点指标。"))
+    story.append(h2("15.3 扩展价值"))
+    story.append(cards([
+        ("跨园区复制", "替换地图、知识、角色和商品库后，可扩展到海洋馆、动物园和其他主题乐园。"),
+        ("平台化能力", "将路线、围栏、角色、任务、内容模板和经营指标做成可配置模块。"),
+        ("内容资产", "持续积累动物知识、角色故事、任务模板和用户生成内容。"),
+        ("研学价值", "把科普任务和徽章升级为年龄分层的学习路径与成长报告。"),
+        ("公益价值", "通过伙伴关系传播动物保护、生态教育和公益活动。"),
+        ("城市文旅", "同一架构可用于博物馆、景区、商业街区和大型活动的空间陪伴。"),
+    ], columns=3))
+
+    # 16 conclusion
+    story += h1("16. 结论")
+    story.append(para("奇遇AI的真正价值，不是让游客多使用一个应用，而是让园区服务围绕一段完整关系重新组织。游前，伙伴理解游客并把期待转化为可执行计划；游中，伙伴感知空间、解释现场并协助处理变化；游后，伙伴把足迹、互动和照片整理为可收藏的故事，并延伸为分享、商品、会员和复游。", "LeadCN"))
+    story.append(para("项目以双层Agent平衡“全局最优”与“个体情感”，以确定性算法保护事实，以动物知识提升互动，以旅程事件支持游后生成。原型已覆盖核心闭环，后续重点是真实数据、定位、云端账户、内容生产与商业试点。项目希望让科技退后一步，让陪伴走近一点，使每次选择、抵达与互动都成为可保存的旅行记忆和下一次出发的理由。"))
+
+    # Appendix
+    story.append(PageBreak())
+    story += h1("附录A：当前原型功能清单")
+    story.append(data_table(
+        ["模块", "已实现能力"],
+        [
+            ["首页", "三阶段入口、六伙伴轮播、阶段状态、移动端适配"],
+            ["游前", "伙伴选择、七轮对话、画像、路线生成、地图、时间轴、场景重算、分享"],
+            ["游中", "旅程入口、矢量地图、位置模拟、电子围栏、服务导航、动态事件、路线重排"],
+            ["展区", "六个动物伙伴、知识卡、快捷问题、AI问答、观察任务、徽章、照片与视频保存"],
+            ["游后", "路线故事、事件时间线、伙伴总结、徽章、照片、H5短片、奇遇票根、票根册"],
+            ["内容输出", "票根编辑、四类模板、照片拖拽、像素风格化、横版/长图导出、设备分享"],
+            ["服务端", "目录、AI状态、游前对话、路线规划、游中聊天、图像转换和健康检查API"],
+            ["质量保障", "路线、园中状态、对话安全、票根、图像结果和画像工具的自动测试"],
+        ],
+        widths=[35 * mm, 134 * mm],
+    ))
+
+    story += h1("附录B：主要资料来源")
+    story.append(bullets([
+        "飞书知识库：《“奇遇AI”线上知识库与补充材料》。",
+        "飞书文档：《开题报告补充材料与具体说明》。",
+        "飞书文档：《演示文档》。",
+        "飞书文档：《技术文档》。",
+        "GitHub公开仓库：2695943032-tech/-agent-in-changlong。",
+        "项目本地原型：D:/ai创新大赛/chimelong-pretrip-demo。",
+        "项目调研材料列出的行业资料：中国主题公园研究院、艾瑞咨询、中国旅游研究院、艾媒咨询及Gartner相关报告。",
+    ]))
+    story.append(Spacer(1, 10 * mm))
+    story.append(para("说明：本计划书基于项目现有材料与原型整理。文中市场数据、目标指标和价格区间用于项目规划与试点假设，最终落地以合作方实际数据和测试结果为准。", "SmallCN"))
+    return story
+
+
+def build() -> Path:
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    TMP.mkdir(parents=True, exist_ok=True)
+    doc = QiyuDocTemplate(str(OUTPUT))
+    doc.multiBuild(build_story())
+    return OUTPUT
+
+
+if __name__ == "__main__":
+    result = build()
+    print(result)

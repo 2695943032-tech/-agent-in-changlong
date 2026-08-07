@@ -1,0 +1,16 @@
+{
+  "name": "长隆奇遇伴侣",
+  "short_name": "奇遇伴侣",
+  "description": "长隆全周期空间智能动物Agent游前演示系统",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3eee2",
+  "theme_color": "#123c32",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

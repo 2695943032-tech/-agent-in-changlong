@@ -30,6 +30,8 @@ build/
 coverage/
 *.log
 *.pid
+__pycache__/
+*.py[cod]
 
 # Keep only the four curated demo recordings used by the Remotion source
 /qiyu-remotion-video/public/recordings/*.webm

@@ -1,0 +1,25 @@
+{
+  "name": "广州长隆野生动物世界",
+  "format": "webp",
+  "tileSize": 256,
+  "minZoom": 0,
+  "maxZoom": 7,
+  "maxNativeZoom": 7,
+  "imageSize": {
+    "width": 15742,
+    "height": 19859
+  },
+  "tileUrlTemplate": "{z}/{x}/{y}.webp",
+  "coordinateSystem": "pixel-top-left",
+  "sourceGeoReference": {
+    "pixelScale": {
+      "x": 1e-06,
+      "y": 1e-06
+    },
+    "topLeft": {
+      "longitude": 113.30305172543962,
+      "latitude": 23.01306960279202
+    },
+    "crs": "unspecified in source TIFF"
+  }
+}

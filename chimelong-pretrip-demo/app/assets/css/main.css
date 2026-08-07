@@ -1,0 +1,97 @@
+:root {
+  --paper: #f3f0e7;
+  --paper-deep: #e9e4d8;
+  --surface: #fbfaf5;
+  --surface-strong: #ffffff;
+  --sand-light: #efe4cf;
+  --forest: #0b3027;
+  --forest-deep: #061e18;
+  --forest-soft: #dce9df;
+  --accent: #d59b45;
+  --accent-dark: #916326;
+  --accent-soft: #f8ead1;
+  --sage: #8eb39a;
+  --ink: #172d26;
+  --muted: #65746e;
+  --line: rgba(13, 48, 39, 0.14);
+  --line-light: rgba(255, 255, 255, 0.16);
+  --shadow-soft: 0 12px 32px rgba(7, 31, 24, 0.08);
+  --shadow-float: 0 22px 52px rgba(7, 31, 24, 0.18);
+  --radius-panel: 18px;
+  --radius-control: 12px;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  color-scheme: light;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #d8ddd6;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100dvh;
+  margin: 0;
+  background: #d8ddd6;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(219, 143, 46, 0.38);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #f0c87f;
+  color: #123c32;
+}
+
+#__nuxt {
+  min-height: 100dvh;
+}
+
+@media screen {
+  #__nuxt {
+    width: min(100%, 480px);
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--paper);
+    box-shadow: 0 0 72px rgba(7, 31, 24, 0.16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
