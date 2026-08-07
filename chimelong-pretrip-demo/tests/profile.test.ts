@@ -9,6 +9,7 @@ describe('cloneVisitorProfile', () => {
       partyType: 'family',
       adultCount: 2,
       childCount: 1,
+      children: [{ age: 6, heightCm: 112 }],
       pace: 'slow',
       startTime: '10:00',
       endTime: '22:00',
@@ -24,6 +25,23 @@ describe('cloneVisitorProfile', () => {
     expect(clone).toEqual(profile)
     expect(() => structuredClone(clone)).not.toThrow()
     expect(clone.animalPriority).not.toBe(profile.animalPriority)
+    expect(clone.children).not.toBe(profile.children)
+  })
+
+  it('normalizes legacy profiles without child details', () => {
+    const legacyProfile = reactive({
+      partyType: 'family',
+      adultCount: 2,
+      childCount: 1,
+      pace: 'slow',
+      startTime: '10:00',
+      endTime: '22:00',
+      animalPriority: ['panda'],
+      diningChoice: 'panda',
+      freeText: '',
+    }) as VisitorProfile
+
+    expect(cloneVisitorProfile(legacyProfile).children).toEqual([])
   })
 })
 

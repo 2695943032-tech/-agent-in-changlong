@@ -10,7 +10,9 @@ export function cloneVisitorProfile(profile: VisitorProfile): VisitorProfile {
     partyType: profile.partyType,
     adultCount: profile.adultCount,
     childCount: profile.childCount,
-    children: profile.children.map(child => ({ ...child })),
+    // Older locally persisted profiles predate child-detail collection.
+    // Normalize them during cloning so the route request stays serializable.
+    children: (profile.children ?? []).map(child => ({ ...child })),
     pace: profile.pace,
     startTime: profile.startTime,
     endTime: profile.endTime,
