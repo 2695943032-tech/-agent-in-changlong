@@ -8,6 +8,7 @@ const props = defineProps<{
   companion: Companion
   reactionKey: number
   enableSwitch?: boolean
+  animalState?: '营业中' | '进食中' | '睡觉中'
 }>()
 
 const emit = defineEmits<{
@@ -221,6 +222,7 @@ onBeforeUnmount(() => {
     :class="[
       `dock-${dockSide}`,
       action ? `action-${action}` : '',
+      props.animalState === '进食中' ? 'state-eating' : props.animalState === '睡觉中' ? 'state-sleeping' : 'state-active',
       { dragging: isDragging, 'is-flipped': isFlipped },
     ]"
     :style="mascotStyle"
@@ -233,7 +235,7 @@ onBeforeUnmount(() => {
     @pointerup="finishPointer"
     @pointercancel="onPointerCancel"
   >
-    <span class="companion-tip">{{ isDragging ? '揪住衣领 · 拖动中' : enableSwitch ? '单击聊聊 · 双击换伙伴' : '点我 · 拖动' }}</span>
+    <span class="companion-tip">{{ isDragging ? '揪住衣领 · 拖动中' : animalState ?? '营业中' }}</span>
     <span class="companion-flipper">
       <span class="companion-actor">
         <img
@@ -395,6 +397,8 @@ onBeforeUnmount(() => {
 .action-nod .companion-actor { animation: mascot-nod 820ms ease-in-out; }
 .action-twirl .companion-actor { animation: mascot-twirl 900ms cubic-bezier(0.2, 0.72, 0.22, 1); }
 .action-settling .companion-actor { animation: mascot-settle 420ms ease-out; }
+.state-eating .companion-actor { animation: mascot-nod 1.6s ease-in-out infinite; }
+.state-sleeping .companion-actor { opacity: .62; filter: grayscale(.3) drop-shadow(0 10px 12px rgba(20, 47, 39, .12)); animation: mascot-settle 2.8s ease-in-out infinite; }
 
 .action-cheer .spark,
 .action-twirl .spark {

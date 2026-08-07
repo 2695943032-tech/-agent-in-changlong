@@ -83,6 +83,7 @@ async function clearCache() {
         :recommended-restaurant-id="state.recommendedRestaurantId"
         :is-replying="journey.isReplying.value"
         :error-message="journey.errorMessage.value"
+        :plan="state.plan"
         @answer="answer"
         @back="journey.previousStep"
         @reset="journey.reset"
@@ -103,16 +104,6 @@ async function clearCache() {
         </div>
       </section>
 
-      <PlanOverview
-        v-else-if="state.view === 'result' && state.plan"
-        :plan="state.plan"
-        :scenarios="catalog.scenarios"
-        :animals="catalog.animals"
-        @regenerate="regenerate"
-        @reset="journey.reset"
-        @clear-cache="clearCache"
-        @ready="emit('ready')"
-      />
     </template>
   </main>
 </template>

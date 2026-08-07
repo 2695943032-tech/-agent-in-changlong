@@ -76,7 +76,8 @@ function canContinue(): boolean {
 function answerSummary(): string {
   if (props.step === 'party') {
     const labels = { family: '亲子家庭', couple: '情侣出游', friends: '朋友结伴', solo: '独自出游', unknown: '未填写' }
-    return `${labels[draft.value.partyType]}，${draft.value.adultCount ?? 0}位成人${draft.value.childCount ? `、${draft.value.childCount}位儿童` : ''}`
+    const childInfo = draft.value.children.map((child, index) => `儿童${index + 1}${child.age !== null ? `${child.age}岁` : ''}${child.age !== null && child.heightCm !== null ? '/' : ''}${child.heightCm !== null ? `${child.heightCm}cm` : ''}`).join('，')
+    return `${labels[draft.value.partyType]}，${draft.value.adultCount ?? 0}位成人${draft.value.childCount ? `、${draft.value.childCount}位儿童` : ''}${childInfo ? `（${childInfo}）` : ''}`
   }
   if (props.step === 'pace') return props.paceOptions.find(item => item.id === draft.value.pace)?.name ?? '暂未选择节奏'
   if (props.step === 'time') return `${draft.value.startTime}—${draft.value.endTime}`
@@ -106,7 +107,7 @@ function submit() {
 
 function skip() {
   const next = cloneVisitorProfile(draft.value)
-  if (props.step === 'party') Object.assign(next, { partyType: 'unknown', adultCount: null, childCount: null })
+  if (props.step === 'party') Object.assign(next, { partyType: 'unknown', adultCount: null, childCount: null, children: [] })
   if (props.step === 'pace') next.pace = null
   if (props.step === 'time') Object.assign(next, { startTime: null, endTime: null })
   if (props.step === 'animals') next.animalPriority = []
