@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>奇遇长隆｜团队协作指南</title>
+  <style>
+    :root{--ink:#15372e;--forest:#07382d;--gold:#d9aa4a;--paper:#f6f1e6;--muted:#61766d;--line:#d9ddd3;--white:#fffdf8}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}main{max-width:1040px;margin:auto;padding:40px 24px 72px}.hero{padding:52px;border-radius:28px;color:#fff;background:radial-gradient(circle at 82% 10%,#1b6951 0%,var(--forest) 48%,#03271f 100%)}.eyebrow{color:var(--gold);letter-spacing:.16em;font-size:.85rem;font-weight:700}h1{margin:10px 0;font-size:clamp(2rem,5vw,4rem);line-height:1.12;font-family:STSong,"Songti SC",serif}h2{margin:46px 0 14px;font-family:STSong,"Songti SC",serif;font-size:1.7rem}h3{margin:0 0 8px;font-size:1.08rem}p{margin:8px 0}.lead{max-width:720px;font-size:1.08rem;color:#d5e4dc}.notice{margin-top:22px;padding:16px 19px;border-left:4px solid var(--gold);border-radius:8px;background:#fff8}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:16px}.card{padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--white)}.card p{color:var(--muted);font-size:.94rem}table{width:100%;border-collapse:collapse;background:var(--white);border:1px solid var(--line);border-radius:16px;overflow:hidden}th,td{padding:13px 15px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#e9eee7}tr:last-child td{border-bottom:0}code{padding:2px 5px;border-radius:4px;background:#e9eee7;font-family:ui-monospace,Consolas,monospace;font-size:.88em}pre{overflow:auto;padding:18px;border-radius:14px;color:#e4f0e8;background:#102e26;line-height:1.55}pre code{padding:0;background:transparent;color:inherit}ul,ol{padding-left:1.3em}li{margin:6px 0}.tag{display:inline-block;margin:3px 4px 0 0;padding:3px 9px;border-radius:99px;background:#e2eee5;color:#20533f;font-size:.82rem}.footer{margin-top:50px;color:var(--muted);font-size:.9rem}@media(max-width:600px){main{padding:18px 14px 52px}.hero{padding:31px 24px;border-radius:20px}th,td{padding:10px}table{font-size:.9rem}}
+  </style>
+</head>
+<body><main>
+<section class="hero"><div class="eyebrow">TEAM PLAYBOOK · 2026.08</div><h1>奇遇长隆<br>团队协作指南</h1><p class="lead">把“全周期 AI 智慧伴游”概念、可演示原型、宣传片与参赛材料，收敛为一套团队可同步推进、可追溯交付的工作方式。</p></section>
+
+<section class="notice"><strong>当前项目判断：</strong>本仓库已包含完整方案材料、地图/审计素材、宣传视觉及 <code>qiyu-remotion-video</code> 宣传片工程；材料提到的 Nuxt 4 + Vue 3 移动端原型位于另一个本地路径，当前未随仓库提供。团队开始前必须先确认：它是否也要纳入同一个远程仓库，或仅以当前仓库的演示视频与材料作为参赛交付范围。</section>
+
+<h2>1. 项目共识：先对齐什么</h2>
+<div class="grid">
+<article class="card"><h3>一句话定位</h3><p>以动物 Agent 为核心，覆盖游前个性化规划、游中空间导览互动、游后 AIGC 回忆生成的主题乐园智慧伴游方案。</p></article>
+<article class="card"><h3>本次交付主线</h3><p>参赛方案可信、原型闭环可演示、宣传片能讲清“游前—游中—游后”的用户价值。</p></article>
+<article class="card"><h3>不可忽略的边界</h3><p>名称和素材不代表官方合作；定位、照片、未成年人数据均需遵循授权、最小化采集、可撤回与删除原则。</p></article>
+</div>
+
+<h2>2. 建议的分工与唯一负责人</h2>
+<p>每项工作只能有一位“直接负责人（DRI）”，其他人可以协作或评审。以下按四人小队设计；人数更少时合并角色即可。</p>
+<table><thead><tr><th>角色</th><th>负责结果</th><th>主要范围</th><th>验收标准</th></tr></thead><tbody>
+<tr><td>产品 / 队长</td><td>统一叙事与优先级</td><td>需求取舍、答辩逻辑、项目计划、演示脚本</td><td>每一项功能能对应用户价值、技术路径和竞赛评分点</td></tr>
+<tr><td>原型 / 前端</td><td>可操作的体验闭环</td><td>Nuxt/Vue 原型（若纳入）、地图、游前游中游后交互</td><td>从选择伙伴到生成票根可完整跑通，无关键断点</td></tr>
+<tr><td>AI / 数据 / GIS</td><td>可信的智能能力</td><td>路线约束、围栏、知识库、角色规则、模拟实时数据</td><td>关键事实由数据或算法得出；模型不编造运营信息</td></tr>
+<tr><td>视觉 / 传播</td><td>统一的展示品质</td><td>角色资产、海报、Remotion 宣传片、PPT/展板</td><td>品牌色、字体、角色设定一致；60 秒内看懂核心闭环</td></tr>
+</tbody></table>
+
+<h2>3. 仓库边界与文件归属</h2>
+<table><thead><tr><th>位置</th><th>用途</th><th>建议负责人</th><th>协作规则</th></tr></thead><tbody>
+<tr><td><code>README.md</code>、<code>长隆AI智慧游园_游前游中游后思维导图.md</code></td><td>项目总览与体验架构</td><td>产品</td><td>任何重大功能变动同步更新此处</td></tr>
+<tr><td><code>补充材料/</code>、<code>supplement_builder.py</code></td><td>计划书、逻辑图、审计和生成脚本</td><td>产品 + 视觉</td><td>生成后的交付物与源脚本一起检查</td></tr>
+<tr><td><code>qiyu-remotion-video/</code></td><td>React/Remotion 宣传片，含录屏、音频和角色图</td><td>视觉 / 前端</td><td>只改自己的镜头组件；渲染前先同步素材命名</td></tr>
+<tr><td><code>宣传图/</code></td><td>主宣传视觉</td><td>视觉</td><td>保留源文件、注明导出版本与用途</td></tr>
+<tr><td><code>scripts/</code>、<code>tmp/</code></td><td>地图/资料处理及中间产物</td><td>数据 / GIS</td><td><strong>当前为未跟踪文件</strong>：先决定哪些脚本和可复现输入应提交，临时渲染产物继续忽略</td></tr>
+</tbody></table>
+
+<h2>4. 第一次团队会：30 分钟定四件事</h2>
+<ol><li><strong>锁定交付清单：</strong>比赛需要的文档、PPT、演示链接/录屏、宣传片和提交截止时间。</li><li><strong>确定原型边界：</strong>把外部 Nuxt 原型迁入仓库、用子模块关联，或明确本仓库只维护材料与宣传片。</li><li><strong>认领任务：</strong>为每项任务写清 DRI、截止日、验收样例和依赖项；不要只写“做地图”或“优化 AI”。</li><li><strong>确定节奏：</strong>每天 10 分钟站会；每两天一次可演示版本；截止前 48 小时停止新增功能，只修复、录制、排版。</li></ol>
+
+<h2>5. 推荐的 Git 协作流程</h2>
+<p>将此目录初始化后的内容推到一个<strong>私有 GitHub 仓库</strong>，邀请队友为 Collaborator。所有人各自克隆仓库，避免通过微信反复传压缩包。</p>
+<pre><code># 每位队友首次操作
+git clone &lt;仓库地址&gt;
+cd ai大赛
+
+# 开始一项小任务
+git switch main
+git pull --ff-only
+git switch -c codex/feature-brief-name
+
+# 完成后：先检查，再提交
+git status
+git add &lt;本次确实要提交的文件&gt;
+git commit -m "feat(video): add post-trip ticket scene"
+git push -u origin codex/feature-brief-name</code></pre>
+<ul><li>不要直接在 <code>main</code> 修改；通过 Pull Request 合并，至少让一位队友看过。</li><li>一个分支只做一件可描述的事：<code>feat/</code>、<code>fix/</code>、<code>docs/</code>、<code>chore/</code>。</li><li>不要提交 <code>.env</code>、账号密码、API Key、个人聊天记录、<code>node_modules</code>、大型可再生渲染缓存。提交前运行 <code>git status</code>。</li><li>视频和图片源文件可能很大：保留交付必需的最终素材；源工程/大文件需要时使用 Git LFS 或单独云盘，并在 README 写明获取方式。</li></ul>
+
+<h2>6. 每日协作模板</h2>
+<div class="grid"><article class="card"><h3>早会消息</h3><p>【姓名】昨天完成：…<br>今天交付：…<br>需要协助/存在风险：…<br>预计可演示时间：…</p></article><article class="card"><h3>任务卡</h3><p>目标：<br>负责人： 截止：<br>输入/依赖：<br>验收：给出可点击页面、截图或视频时间码。<br>不包含：防止任务无限扩张。</p></article><article class="card"><h3>评审反馈</h3><p>先说明观察到的事实（页面/时间码/文件），再说明影响，最后给可执行建议。例：“02:14 字幕被手机遮挡，投屏时不可读；建议移至左上安全区。”</p></article></div>
+
+<h2>7. 质量门槛</h2>
+<p><span class="tag">一致性</span><span class="tag">可演示</span><span class="tag">可追溯</span><span class="tag">隐私安全</span></p>
+<ul><li>方案、原型、视频使用一致的命名、三阶段叙事、六位伙伴设定和数据口径。</li><li>宣传片工程修改后，在 <code>qiyu-remotion-video</code> 执行 <code>pnpm install</code> 与 <code>pnpm render</code> 验证；不要只交付未播放过的代码。</li><li>涉及排队、客流、定位或动物信息时，在演示中标明“模拟数据”或来源；路线距离、顺序等关键事实由确定性逻辑计算。</li><li>演示账户、录屏和截图不得暴露私人信息、真实密钥或未经授权的用户照片。</li></ul>
+
+<h2>8. 接下来最值得优先完成的任务</h2>
+<ol><li>队长建立私有远程仓库、邀请队友，并在任务工具建立交付看板。</li><li>对 <code>scripts/</code> 与 <code>tmp/</code> 做一次分类：可复现脚本和必要素材提交；纯临时输出加入忽略规则。</li><li>明确并迁移（或关联）Nuxt 原型代码；这是当前材料与仓库之间最重要的可追溯性缺口。</li><li>先跑通一版“游前选伙伴 → 游中抵达触发 → 游后票根/回忆”的 3 分钟答辩演示，再增添细节。</li></ol>
+<p class="footer">本指南基于当前仓库内容编写：方案/思维导图、补充材料、宣传视觉、Remotion 宣传片工程、地图处理脚本与 Git 状态。更新项目边界、人员或截止日期后，请同步更新本文件。</p>
+</main></body></html>
