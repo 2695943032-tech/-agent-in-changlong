@@ -96,6 +96,7 @@ export interface VisitorProfile {
   partyType: PartyType
   adultCount: number | null
   childCount: number | null
+  children: Array<{ age: number | null, heightCm: number | null }>
   pace: Pace | null
   startTime: string | null
   endTime: string | null

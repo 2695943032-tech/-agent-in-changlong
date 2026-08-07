@@ -50,6 +50,7 @@ function createEmptyProfile(): VisitorProfile {
     partyType: 'unknown',
     adultCount: null,
     childCount: null,
+    children: [],
     pace: null,
     startTime: '10:00',
     endTime: '22:00',
@@ -123,7 +124,11 @@ export function usePretripJourney() {
       if (!saved) return
       try {
         const parsed = JSON.parse(saved) as JourneyState
-        if (parsed.version === 4) state.value = { ...parsed, history: [] }
+        if (parsed.version === 4) {
+          // Older sessions may still point at the removed full-screen result view.
+          // Preserve the generated plan, but reopen it inside the chat experience.
+          state.value = { ...parsed, view: parsed.view === 'result' ? 'chat' : parsed.view, history: [] }
+        }
       }
       catch {
         // Preserve legacy payloads so a future migration can still recover them.
@@ -216,7 +221,8 @@ export function usePretripJourney() {
       const remainingDelay = Math.max(0, 850 - (Date.now() - startedAt))
       if (remainingDelay > 0) await new Promise(resolve => setTimeout(resolve, remainingDelay))
       state.value.plan = plan
-      state.value.view = 'result'
+      state.value.view = 'chat'
+      state.value.messages.push(createMessage('assistant', `路线已经规划好啦：${plan.stops.length} 个点位、预计步行 ${plan.walkingMeters} 米。点开下面的位置卡，就能查看园区地图和路线。`, 'reply', 'template'))
     }
     catch (error) {
       errorMessage.value = formatPlanRequestError(error)

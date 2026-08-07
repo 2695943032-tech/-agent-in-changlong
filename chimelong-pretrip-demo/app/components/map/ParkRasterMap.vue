@@ -37,26 +37,47 @@ const emit = defineEmits<{
 }>()
 
 const tileSize = 256
-const tileZoom = 5
-const tileColumns = 16
-const tileRows = 20
-const stageWidth = tileColumns * tileSize
-const stageHeight = tileRows * tileSize
+// Use the detailed local tile set instead of the coarse full-park level.
+// Keep the complete overview layer until the detail viewport is regenerated
+// with matching source bounds.
+const detailMode = computed(() => false)
+const tileZoom = computed(() => detailMode.value ? 7 : 5)
+const tileColumns = computed(() => detailMode.value ? 62 : 16)
+const tileRows = computed(() => detailMode.value ? 78 : 20)
+const stageWidth = computed(() => tileColumns.value * tileSize)
+const stageHeight = computed(() => tileRows.value * tileSize)
+const mapViewBox = computed(() => {
+  const insetX = 120
+  const insetY = 140
+  return `${insetX} ${insetY} ${stageWidth.value - insetX * 2} ${stageHeight.value - insetY * 2}`
+})
 const sourcePixelDegrees = 0.000001
-const sourcePixelDivisor = 4
+const sourcePixelDivisor = computed(() => detailMode.value ? 1 : 4)
 const topLeftLongitude = 113.30305172543962
 const topLeftLatitude = 23.01306960279202
 
-const tiles = Array.from({ length: tileColumns * tileRows }, (_, index) => {
-  const x = index % tileColumns
-  const y = Math.floor(index / tileColumns)
-  return { id: `${x}-${y}`, x, y, src: `/maps/chimelong/${tileZoom}/${x}/${y}.webp` }
+const tiles = computed(() => {
+  const columns = tileColumns.value
+  const rows = tileRows.value
+  if (!detailMode.value) return Array.from({ length: columns * rows }, (_, index) => ({ x: index % columns, y: Math.floor(index / columns) }))
+  const viewport = mapViewport.value?.getBoundingClientRect()
+  const visibleWidth = columns / zoom.value
+  const visibleHeight = rows / zoom.value
+  const offsetX = viewport ? pan.x / viewport.width * columns / zoom.value : 0
+  const offsetY = viewport ? pan.y / viewport.height * rows / zoom.value : 0
+  const startX = Math.max(0, Math.floor((columns - visibleWidth) / 2 - offsetX) - 2)
+  const endX = Math.min(columns, Math.ceil(startX + visibleWidth) + 4)
+  const startY = Math.max(0, Math.floor((rows - visibleHeight) / 2 - offsetY) - 2)
+  const endY = Math.min(rows, Math.ceil(startY + visibleHeight) + 4)
+  const result = [] as Array<{ x: number, y: number }>
+  for (let y = startY; y < endY; y++) for (let x = startX; x < endX; x++) result.push({ x, y })
+  return result
 })
 
 function geoToRasterPoint(point: GeoPoint) {
   return {
-    x: (point.longitude - topLeftLongitude) / sourcePixelDegrees / sourcePixelDivisor,
-    y: (topLeftLatitude - point.latitude) / sourcePixelDegrees / sourcePixelDivisor,
+    x: (point.longitude - topLeftLongitude) / sourcePixelDegrees / sourcePixelDivisor.value,
+    y: (topLeftLatitude - point.latitude) / sourcePixelDegrees / sourcePixelDivisor.value,
   }
 }
 
@@ -82,10 +103,10 @@ function geographicPointsAttribute(points: readonly (readonly [number, number])[
   }).join(' ')
 }
 
-const surveyedRoads = parkLiveRoads.map(road => ({
-  ...road,
-  points: geographicPointsAttribute(road.coordinates),
-}))
+// The raster tiles already contain the visitor-facing paths. Hide the imported
+// perimeter/service network, which adds distracting roads outside the park.
+const surveyedRoads: Array<{ id: string, kind: string, points: string }> = []
+const visibleLandmarks = parkLiveLandmarks.filter(landmark => landmark.name !== '珑翠花园')
 
 const routeSegments = computed(() => {
   const nodes = ['entrance', ...props.routeZoneIds]
@@ -109,9 +130,37 @@ const navigationPoints = computed(() => props.navigationRoute?.path.map(point =>
 }).join(' ') ?? '')
 
 const positionPoint = computed(() => props.currentPosition ? geoToRasterPoint(props.currentPosition) : null)
+const mapViewport = useTemplateRef<HTMLElement>('mapViewport')
+const zoom = shallowRef(1.15)
+const pan = reactive({ x: 0, y: 0 })
+let pinch: { distance: number, zoom: number } | null = null
+let drag: { x: number, y: number, panX: number, panY: number } | null = null
+const mapTransform = computed(() => ({ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom.value})` }))
+function pointDistance(a: Touch, b: Touch) { return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) }
+function constrainPan() {
+  const rect = mapViewport.value?.getBoundingClientRect()
+  if (!rect) return
+  if (zoom.value < 1.3) {
+    pan.x = 0
+    pan.y = 0
+    return
+  }
+  const maxX = rect.width * (zoom.value - 1) / 2
+  const maxY = rect.height * (zoom.value - 1) / 2
+  pan.x = Math.max(-maxX, Math.min(maxX, pan.x))
+  pan.y = Math.max(-maxY, Math.min(maxY, pan.y))
+}
+function setZoom(next: number) { zoom.value = Math.max(1.15, next); constrainPan() }
+function onWheel(event: WheelEvent) { event.preventDefault(); setZoom(zoom.value * (event.deltaY > 0 ? .88 : 1.14)) }
+function onPointerDown(event: PointerEvent) { drag = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; mapViewport.value?.setPointerCapture(event.pointerId) }
+function onPointerMove(event: PointerEvent) { if (!drag || zoom.value < 1.3) return; pan.x = drag.panX + event.clientX - drag.x; pan.y = drag.panY + event.clientY - drag.y; constrainPan() }
+function onPointerUp() { drag = null }
+function onTouchStart(event: TouchEvent) { if (event.touches.length === 2) pinch = { distance: pointDistance(event.touches[0]!, event.touches[1]!), zoom: zoom.value } }
+function onTouchMove(event: TouchEvent) { if (!pinch || event.touches.length !== 2) return; event.preventDefault(); setZoom(pinch.zoom * pointDistance(event.touches[0]!, event.touches[1]!) / pinch.distance) }
+function onTouchEnd() { pinch = null }
 
 function fenceRadius(latitude: number, meters: number) {
-  const latitudeMetersPerPixel = sourcePixelDegrees * 111320 / sourcePixelDivisor
+  const latitudeMetersPerPixel = sourcePixelDegrees * 111320 / sourcePixelDivisor.value
   const longitudeMetersPerPixel = latitudeMetersPerPixel * Math.cos(latitude * Math.PI / 180)
   return { rx: meters / longitudeMetersPerPixel, ry: meters / latitudeMetersPerPixel }
 }
@@ -130,18 +179,19 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 </script>
 
 <template>
-  <div class="raster-map" :class="{ interactive }">
+  <div ref="mapViewport" class="raster-map" :class="{ interactive }" @wheel="onWheel" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
     <svg
       class="map-stage"
-      :viewBox="`0 0 ${stageWidth} ${stageHeight}`"
+      :style="mapTransform"
+      :viewBox="mapViewBox"
       role="img"
       aria-label="长隆野生动物世界园区地图"
     >
       <image
         v-for="tile in tiles"
-        :key="tile.id"
+        :key="`${tileZoom}-${tile.x}-${tile.y}`"
         class="map-tile"
-        :href="tile.src"
+        :href="`/maps/chimelong/${tileZoom}/${tile.x}/${tile.y}.webp`"
         :x="tile.x * tileSize"
         :y="tile.y * tileSize"
         :width="tileSize"
@@ -208,7 +258,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 
         <g class="landmark-layer" aria-label="GeoJSON 园区兴趣点">
           <g
-            v-for="landmark in parkLiveLandmarks"
+            v-for="landmark in visibleLandmarks"
             :key="landmark.id"
             class="landmark"
             :transform="`translate(${geoToRasterPoint(landmark).x} ${geoToRasterPoint(landmark).y})`"
@@ -228,9 +278,12 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             :role="interactive ? 'button' : undefined"
             :tabindex="interactive ? 0 : undefined"
             :aria-label="interactive ? `模拟前往${zone.name}` : undefined"
+            @pointerdown.stop
             @click.stop="selectZone(zone)"
             @keydown.enter.stop="selectZone(zone)"
           >
+            <!-- The visible marker stays compact; this transparent circle makes the label area easy to tap. -->
+            <circle r="170" class="zone-hit-area" />
             <circle r="64" class="zone-ring" />
             <circle r="46" class="zone-core" />
             <text y="16" text-anchor="middle">{{ routeZoneIds.includes(zone.id) ? routeZoneIds.indexOf(zone.id) + 1 : index + 1 }}</text>
@@ -248,8 +301,9 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 </template>
 
 <style scoped>
-.raster-map { width: 100%; height: 100%; overflow: hidden; background: #e6e1d3; }
-.map-stage { display: block; width: 100%; height: 100%; overflow: visible; }
+.raster-map { width: 100%; height: 100%; overflow: hidden; background: #8bb579; touch-action: none; cursor: grab; }
+.map-stage { display: block; width: 100%; height: 100%; overflow: hidden; transform-origin: center; transition: transform 80ms linear; background: #8bb579; }
+.raster-map:active { cursor: grabbing; }
 .map-tile { pointer-events: none; }
 .surveyed-road { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .surveyed-road.footway,.surveyed-road.pedestrian,.surveyed-road.path,.surveyed-road.steps { stroke: rgba(255,255,255,.82); stroke-width: 12; }
@@ -274,6 +328,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 .service-marker.target text { fill: #fff; }
 .zone { cursor: default; outline: none; }
 .interactive .zone { cursor: pointer; }
+.zone-hit-area { fill: transparent; stroke: transparent; pointer-events: all; }
 .zone-ring { fill: #fffaf0; stroke: #174b3b; stroke-width: 12; }
 .zone-core { fill: #174b3b; }
 .zone.planned .zone-core { fill: #c95237; }
