@@ -69,6 +69,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleComposerKeydow
 const toolsOpen = shallowRef(false)
 const voiceActive = shallowRef(false)
 const composerText = shallowRef('')
+const localMessages = ref<Array<{ id: string, role: 'user' | 'assistant', text: string }>>([])
 const photoInput = useTemplateRef<HTMLInputElement>('photoInput')
 const restroomRequest = shallowRef(false)
 const destinationRequest = shallowRef<{ text: string, kind: 'restaurant' | 'animal' } | null>(null)
@@ -125,10 +126,11 @@ function selectSearchMatch(match: { zone?: AnimalPoi, service?: ParkService }) {
   mapSearch.value = ''
 }
 
-function sendChat() {
+async function sendChat() {
   const text = composerText.value.trim()
   if (!text) return
   composerText.value = ''
+  localMessages.value.push({ id: `${Date.now()}-u`, role: 'user', text })
   if (/我到了|到园|进园|已经到了/.test(text)) {
     emit('arrive')
     return
@@ -146,6 +148,30 @@ function sendChat() {
   else if (/展区|长颈鹿|熊猫|考拉|大象|老虎|黑猩猩/.test(text)) {
     destinationRequest.value = { text, kind: 'animal' }
     restroomRequest.value = false
+  }
+  else {
+    try {
+      const response = await $fetch<{ reply: string, navigationTarget: ParkNavigationTarget | null }>('/api/inpark/chat', {
+        method: 'POST',
+        body: {
+          sessionId: 'pretrip-map-chat',
+          companionId: props.companion.id,
+          currentZoneId: null,
+          currentPosition: demoPosition,
+          routeZoneIds: props.plan?.actualAnimalOrder ?? [],
+          completedZoneIds: [],
+          question: text,
+        },
+      })
+      localMessages.value.push({ id: `${Date.now()}-a`, role: 'assistant', text: response.reply })
+      if (response.navigationTarget) {
+        activeDestination.value = response.navigationTarget
+        activeNavigation.value = navigationRouteFromPosition(demoPosition, response.navigationTarget)
+      }
+    }
+    catch {
+      localMessages.value.push({ id: `${Date.now()}-a`, role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。' })
+    }
   }
 }
 
@@ -222,6 +248,11 @@ watch(() => props.messages.length, async () => {
         </div>
       </div>
 
+      <div v-for="message in localMessages" :key="message.id" class="message-row" :class="message.role">
+        <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
+        <div class="message-bubble"><p>{{ message.text }}</p></div>
+      </div>
+
       <div v-if="isReplying" class="message-row assistant">
         <span class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
         <div class="typing-bubble" aria-label="伙伴正在思考"><i /><i /><i /></div>
@@ -295,14 +326,14 @@ watch(() => props.messages.length, async () => {
       </div>
     </div>
 
-    <div v-if="mapOpen && plan" class="map-modal" role="dialog" aria-modal="true" aria-label="园区路线地图">
+    <Transition name="map-drop"><div v-if="mapOpen && plan" class="map-backdrop" @click.self="mapOpen = false"><div class="map-modal" role="dialog" aria-modal="true" aria-label="园区路线地图">
       <header><div><small>园区实时地图</small><strong>{{ plan.title }}</strong><label class="map-search"><span>⌕</span><input placeholder="搜索动物、展区或服务"></label></div><button type="button" @click="mapOpen = false">×</button></header>
       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan.actualAnimalOrder" :current-position="demoPosition" :services="activeRestroom ? [activeRestroom] : []" :show-services="Boolean(activeRestroom)" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectedZone = $event" /></div>
       <footer v-if="activeDestination && !activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ activeDestination.name }}</strong><span>已为你规划园区步行路线。</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ restroomLabels[activeRestroom.id] ?? activeRestroom.name }}</strong><span>{{ activeRestroom.detail }}</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="zoneInfo"><small>展区实时信息</small><strong>{{ zoneInfo.name }}</strong><span>{{ zoneInfo.description }}</span><b>当前状态：{{ animalState }} · 火爆指数 {{ zoneHeat }}%</b></footer>
       <footer v-else><strong>路线已标记</strong><span>点击地图中的动物展区，查看介绍、状态与实时火爆指数。</span></footer>
-    </div>
+    </div></div></Transition>
   </section>
 </template>
 
@@ -549,6 +580,8 @@ watch(() => props.messages.length, async () => {
   50% { opacity: 0.25; transform: translateY(-2px); }
 }
 @keyframes map-rise { from { opacity: 0; transform: translate(50%, calc(100% + 20px)) scale(.98); } to { opacity: 1; transform: translateX(50%) scale(1); } }
+.map-backdrop { position: fixed; z-index: 19; inset: 0; background: rgba(8,30,24,.28); }
+.map-drop-enter-active .map-modal,.map-drop-leave-active .map-modal { transition: transform 380ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease; }.map-drop-enter-from .map-modal,.map-drop-leave-to .map-modal { opacity: 0; transform: translate(50%, calc(100% + 20px)) scale(.98); }
 .map-modal header div { width: 100%; gap: 5px; }
 .map-modal header small { font-size: 13px; font-weight: 800; }
 .map-modal header strong { font-size: 20px; }
