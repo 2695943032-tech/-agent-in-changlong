@@ -240,6 +240,17 @@ export function usePretripJourney() {
     if (import.meta.client) localStorage.removeItem(STORAGE_KEY)
   }
 
+  function markInPark() {
+    if (!state.value.plan || state.value.messages.some(message => message.id === 'park-arrival')) return
+    state.value.messages.push({
+      id: 'park-arrival',
+      role: 'assistant',
+      kind: 'reply',
+      mode: 'template',
+      text: '我感应到你已经到园啦！路线的第一站已经准备好，想出发时告诉我“开始导航”，我会把地图和路线直接发到这里。',
+    })
+  }
+
   return {
     state,
     currentChatStep,
@@ -250,6 +261,7 @@ export function usePretripJourney() {
     previousStep,
     generatePlan,
     regenerate,
+    markInPark,
     reset,
   }
 }

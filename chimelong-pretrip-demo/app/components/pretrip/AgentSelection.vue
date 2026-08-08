@@ -66,12 +66,13 @@ const emit = defineEmits<{
 
 <style scoped>
 .selection-shell {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .selection-hero {
   position: relative;
-  padding: calc(84px + env(safe-area-inset-top)) 22px 32px;
+  padding: calc(44px + env(safe-area-inset-top)) 22px 14px;
   overflow: hidden;
   border-radius: 0;
   background:
@@ -110,13 +111,7 @@ const emit = defineEmits<{
   font-style: normal;
 }
 
-.selection-hero p {
-  max-width: 340px;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 13px;
-  line-height: 1.75;
-}
+.selection-hero p,.knowledge-badge { display: none; }
 
 .knowledge-badge {
   display: inline-flex;
@@ -140,9 +135,7 @@ const emit = defineEmits<{
   box-shadow: 0 0 0 4px rgba(126, 210, 159, 0.12);
 }
 
-.selection-content {
-  padding: 28px 18px 40px;
-}
+.selection-content { height: calc(100dvh - 168px - env(safe-area-inset-top)); padding: 16px 14px 10px; }
 
 .section-heading span {
   color: var(--accent-dark);
@@ -158,18 +151,15 @@ const emit = defineEmits<{
   font-size: 24px;
 }
 
-.agent-list {
-  display: grid;
-  gap: 12px;
-}
+.agent-list { display: grid; height: calc(100% - 60px); grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 10px; }
 
 .agent-card {
   display: grid;
-  grid-template-columns: 104px 1fr 32px;
+  grid-template-columns: 58px minmax(0, 1fr) 26px;
   align-items: center;
-  min-height: 140px;
-  padding: 12px;
-  gap: 13px;
+  min-height: 0;
+  padding: 9px;
+  gap: 6px;
   border: 1px solid color-mix(in srgb, var(--agent-accent) 32%, var(--line));
   border-radius: var(--radius-panel);
   background: var(--surface);
@@ -187,7 +177,7 @@ const emit = defineEmits<{
 .agent-portrait {
   position: relative;
   display: block;
-  width: 104px;
+  width: 58px;
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: 14px;
@@ -228,21 +218,21 @@ const emit = defineEmits<{
 
 .agent-copy > small {
   color: var(--agent-accent);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 800;
 }
 
 .agent-copy > strong {
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 18px;
 }
 
 .agent-copy > span {
   display: -webkit-box;
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 9px;
   line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -260,7 +250,7 @@ const emit = defineEmits<{
 }
 
 .ai-status {
-  display: flex;
+  display: none;
   align-items: center;
   margin-top: 17px;
   padding: 12px;

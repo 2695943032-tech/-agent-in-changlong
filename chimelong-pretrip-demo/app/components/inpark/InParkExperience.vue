@@ -10,6 +10,7 @@ import ParkMap from './ParkMap.vue'
 import ParkServiceDrawer from './ParkServiceDrawer.vue'
 import TripEntryGate from './TripEntryGate.vue'
 import ZoneUnlockSheet from './ZoneUnlockSheet.vue'
+import JourneyMapSheet from '../map/JourneyMapSheet.vue'
 
 interface PendingUnlock {
   zone: ParkZoneContent
@@ -28,6 +29,8 @@ const pretripState = computed(() => pretrip.state.value)
 const collectionOpen = shallowRef(false)
 const servicesOpen = shallowRef(false)
 const drawerExpanded = shallowRef(false)
+const mapOpen = shallowRef(false)
+const presence = useParkPresence()
 const pendingUnlock = shallowRef<PendingUnlock | null>(null)
 const selectedService = shallowRef<ParkService | null>(null)
 const navigationRoute = navigation.route
@@ -193,7 +196,19 @@ onBeforeUnmount(() => {
   if (geolocationWatchId !== undefined && navigator.geolocation) navigator.geolocation.clearWatch(geolocationWatchId)
 })
 
-onMounted(syncJourneyRecord)
+onMounted(() => {
+  syncJourneyRecord()
+  presence.start((position) => {
+    if (chatMessages.value.some(message => message.id === 'park-arrival')) return
+    chatMessages.value.push({
+      id: 'park-arrival',
+      role: 'assistant',
+      text: `我感应到你已经到园啦！${nextZoneName.value} 是我们路线的第一站，准备好就告诉我“开始导航”。`,
+      mode: 'template',
+    })
+    updateLocation(position)
+  })
+})
 
 watch(() => park.state.value, syncJourneyRecord, { deep: true })
 
@@ -282,7 +297,7 @@ function finishJourney() {
           </section>
 
           <nav class="park-bottom-nav" aria-label="园中功能">
-            <button class="active" type="button"><span>图</span><small>地图</small></button>
+            <button class="active" type="button" @click="mapOpen = true"><span>图</span><small>地图</small></button>
             <button type="button" @click="servicesOpen = true"><span>+</span><small>服务</small></button>
             <button type="button" @click="collectionOpen = true"><span>{{ tripState.unlockedCompanionIds.length }}</span><small>伙伴</small></button>
             <button type="button" @click="finishJourney"><span>忆</span><small>结束</small></button>
@@ -324,6 +339,17 @@ function finishJourney() {
         :event-id="tripState.activeEventId"
         @resolve="resolveEvent(tripState.activeEventId!, $event)"
       />
+
+      <JourneyMapSheet
+        :open="mapOpen"
+        :title="navigationRoute?.target.name ?? '今天的园中路线'"
+        :animals="catalog.animals"
+        :route-zone-ids="tripState.routeZoneIds"
+        :position="presence.position.value ?? tripState.currentPosition"
+        :services="parkServices"
+        :navigation-route="navigationRoute"
+        @close="mapOpen = false"
+      />
     </template>
 
   </main>
@@ -345,15 +371,15 @@ function finishJourney() {
 .route-progress i { display: block; height: 100%; border-radius: inherit; background: #f1c77d; transition: width 260ms ease; }
 .route-progress small { color: rgba(255,255,255,.66); font-size: 10px; }
 .park-header > p { margin: 8px 0 0; color: #9de0b8; font-size: 10px; }
-.park-content { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
-.park-map-stage { position: absolute; inset: 0; padding: 0 0 calc(126px + env(safe-area-inset-bottom)); }
+.park-content { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: #f8fbf8; }
+.park-map-stage { display: none; }
 .drawer-open .park-map-stage { padding-bottom: min(54dvh, 430px); }
 .park-map-stage :deep(.map-shell) { display: grid; height: 100%; grid-template-rows: auto minmax(0,1fr) auto; }
 .park-map-stage :deep(.map-shell) { border-right: 0; border-left: 0; border-radius: 0; box-shadow: none; }
 .park-map-stage :deep(.map-toolbar) { padding-right: 18px; padding-left: 18px; }
 .park-map-stage :deep(.map-viewport) { min-height: 0; aspect-ratio: auto; }
-.park-drawer { position: fixed; z-index: 40; bottom: 0; left: 50%; width: min(100%,480px); height: min(56dvh, 470px); padding: 9px 12px calc(82px + env(safe-area-inset-bottom)); border: 1px solid rgba(36,58,47,.1); border-bottom: 0; border-radius: 28px 28px 0 0; background: rgba(251,247,238,.96); box-shadow: 0 -24px 54px rgba(7,31,24,.18); transform: translate3d(-50%, calc(100% - 112px - env(safe-area-inset-bottom)), 0); transition: transform 280ms var(--ease-out), height 280ms var(--ease-out); backdrop-filter: blur(18px); }
-.drawer-open .park-drawer { transform: translate3d(-50%, 0, 0); }
+.park-drawer { position: absolute; z-index: 40; inset: 0; width: 100%; height: auto; padding: 8px 12px calc(80px + env(safe-area-inset-bottom)); border: 0; border-radius: 0; background: #f8fbf8; box-shadow: none; transform: none; }
+.drawer-open .park-drawer { transform: none; }
 .drawer-handle { display: grid; width: 100%; min-height: 44px; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--forest); }
 .drawer-handle i { justify-self: end; width: 42px; height: 5px; border-radius: 999px; background: #cfc7b6; }
 .drawer-handle span { color: #273f36; font-size: 11px; font-weight: 900; }
@@ -366,8 +392,8 @@ function finishJourney() {
 .quick-status-row button { display: grid; min-height: 62px; padding: 11px; gap: 2px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: inherit; text-align: left; }
 .quick-status-row span { color: var(--accent-dark); font-size: 9px; font-weight: 900; }
 .quick-status-row strong { overflow: hidden; color: var(--ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.park-drawer :deep(.agent-chat) { margin-top: 8px; box-shadow: none; }
-.park-drawer :deep(.messages) { max-height: min(20dvh, 150px); min-height: 80px; }
+.park-drawer :deep(.agent-chat) { margin-top: 8px; box-shadow: 0 8px 24px rgba(25,75,57,.06); }
+.park-drawer :deep(.messages) { max-height: none; min-height: 240px; }
 .park-bottom-nav { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4,1fr); width: min(100%,480px); margin: 0 auto; padding: 7px 12px max(7px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: rgba(251,250,245,.94); box-shadow: 0 -12px 32px rgba(7,31,24,.12); backdrop-filter: blur(16px); }
 .park-bottom-nav button { display: grid; min-height: 50px; padding: 4px; place-items: center; gap: 2px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); }
 .park-bottom-nav span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #e8ece6; font-size: 10px; font-weight: 900; }

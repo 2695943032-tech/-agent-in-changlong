@@ -25,6 +25,7 @@ const park = useParkJourney()
 const journeyRecords = useJourneyRecords()
 const state = journey.state
 const selectedCompanion = computed(() => catalog.value?.companions.find(item => item.id === state.value.companionId) ?? null)
+const presence = useParkPresence()
 
 function selectCompanion(companion: Companion) {
   journey.chooseCompanion(companion)
@@ -37,6 +38,17 @@ function answer(profile: VisitorProfile, summary: string) {
 function regenerate(scenarioId: ScenarioId) {
   void journey.regenerate(scenarioId)
 }
+
+function enterPark() {
+  if (!state.value.plan || !state.value.companionId) return
+  journey.markInPark()
+  if (!park.state.value.started) {
+    park.begin(state.value.companionId, 'follow', state.value.plan.actualAnimalOrder)
+    journeyRecords.start({ companionId: state.value.companionId, plan: state.value.plan, visitorProfile: state.value.profile })
+  }
+}
+
+onMounted(() => presence.start(() => enterPark()))
 
 async function clearCache() {
   if (!window.confirm('确定清除全部缓存并重新开始吗？游前计划、园中进度、回忆星册和票根都会被删除。')) return
@@ -88,6 +100,7 @@ async function clearCache() {
         @back="journey.previousStep"
         @reset="journey.reset"
         @generate="journey.generatePlan()"
+        @arrive="enterPark"
       />
 
       <section v-else-if="state.view === 'generating' && selectedCompanion" class="generating-screen">
