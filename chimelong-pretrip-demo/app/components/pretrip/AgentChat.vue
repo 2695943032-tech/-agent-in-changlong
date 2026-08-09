@@ -69,7 +69,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleComposerKeydow
 const toolsOpen = shallowRef(false)
 const voiceActive = shallowRef(false)
 const composerText = shallowRef('')
-const localMessages = ref<Array<{ id: string, role: 'user' | 'assistant', text: string }>>([])
+type LocalTimelineItem =
+  | { id: string, type: 'message', role: 'user' | 'assistant', text: string }
+  | { id: string, type: 'map' }
+
+const localMessages = ref<LocalTimelineItem[]>([])
+const journeyMessages = computed(() => props.messages.filter(message => message.id !== 'park-arrival'))
+const arrivalMessage = computed(() => props.messages.find(message => message.id === 'park-arrival') ?? null)
 const photoInput = useTemplateRef<HTMLInputElement>('photoInput')
 const restroomRequest = shallowRef(false)
 const destinationRequest = shallowRef<{ text: string, kind: 'restaurant' | 'animal' } | null>(null)
@@ -130,8 +136,8 @@ async function sendChat() {
   const text = composerText.value.trim()
   if (!text) return
   composerText.value = ''
-  localMessages.value.push({ id: `${Date.now()}-u`, role: 'user', text })
-  if (/我到了|到园|进园|已经到了/.test(text)) {
+  localMessages.value.push({ id: `${Date.now()}-u`, type: 'message', role: 'user', text })
+  if (/我(?:到|进)(?:了|啦)|到园(?:了|啦)?|进园(?:了|啦)?|已经到(?:了|啦)/.test(text)) {
     emit('arrive')
     return
   }
@@ -163,14 +169,14 @@ async function sendChat() {
           question: text,
         },
       })
-      localMessages.value.push({ id: `${Date.now()}-a`, role: 'assistant', text: response.reply })
+      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: response.reply })
       if (response.navigationTarget) {
         activeDestination.value = response.navigationTarget
         activeNavigation.value = navigationRouteFromPosition(demoPosition, response.navigationTarget)
       }
     }
     catch {
-      localMessages.value.push({ id: `${Date.now()}-a`, role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。' })
+      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。' })
     }
   }
 }
@@ -210,16 +216,30 @@ const zoneInfo = computed(() => {
 })
 const zoneHeat = computed(() => selectedZone.value ? 48 + ((selectedZone.value.id.length * 11 + heatTick.value * 7) % 43) : 0)
 
+async function scrollToLatest(behavior: ScrollBehavior = 'smooth') {
+  await nextTick()
+  const list = messageList.value
+  if (!list) return
+  list.scrollTo({ top: list.scrollHeight, behavior })
+}
+
+onMounted(() => void scrollToLatest('auto'))
+
+watch(arrivalMessage, (message) => {
+  if (!message || localMessages.value.some(item => item.id === 'park-arrival-map')) return
+  localMessages.value.push(
+    { id: 'park-arrival-map', type: 'map' },
+    { id: 'park-arrival-welcome', type: 'message', role: 'assistant', text: message.text },
+  )
+}, { immediate: true })
+
 watch([
   () => props.messages.length,
   () => localMessages.value.length,
   () => restroomRequest.value,
   () => destinationRequest.value?.text,
   () => props.plan,
-], async () => {
-  await nextTick()
-  messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'smooth' })
-})
+], () => void scrollToLatest())
 </script>
 
 <template>
@@ -242,7 +262,7 @@ watch([
 
     <div ref="messageList" class="message-list" aria-live="polite">
       <div
-        v-for="message in messages"
+        v-for="message in journeyMessages"
         :key="message.id"
         class="message-row"
         :class="message.role"
@@ -254,16 +274,17 @@ watch([
         </div>
       </div>
 
-      <button v-if="plan" class="location-card" type="button" @click="mapOpen = true">
-        <span class="location-pin">⌖</span>
-        <span><small>团团分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
-        <b>查看地图 ›</b>
-      </button>
-
-      <div v-for="message in localMessages" :key="message.id" class="message-row" :class="message.role">
-        <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
-        <div class="message-bubble"><p>{{ message.text }}</p></div>
-      </div>
+      <template v-for="message in localMessages" :key="message.id">
+        <button v-if="message.type === 'map' && plan" class="location-card" type="button" @click="mapOpen = true">
+          <span class="location-pin">⌖</span>
+          <span><small>{{ companion.name }}分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
+          <b>查看地图 ›</b>
+        </button>
+        <div v-else-if="message.type === 'message'" class="message-row" :class="message.role">
+          <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
+          <div class="message-bubble"><p>{{ message.text }}</p></div>
+        </div>
+      </template>
 
       <div v-if="isReplying" class="message-row assistant">
         <span class="message-avatar">{{ companion.name.slice(0, 1) }}</span>

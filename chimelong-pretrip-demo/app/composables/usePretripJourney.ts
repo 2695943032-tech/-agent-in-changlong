@@ -222,7 +222,7 @@ export function usePretripJourney() {
       if (remainingDelay > 0) await new Promise(resolve => setTimeout(resolve, remainingDelay))
       state.value.plan = plan
       state.value.view = 'chat'
-      state.value.messages.push(createMessage('assistant', `路线已经规划好啦：${plan.stops.length} 个点位、预计步行 ${plan.walkingMeters} 米。点开下面的位置卡，就能查看园区地图和路线。`, 'reply', 'template'))
+      state.value.messages.push(createMessage('assistant', '路线规划好啦，等你入园后我会自动检测到你，我在长隆等你哦！如果我没有检测到，你可以随时发送“我到啦”来激活我。', 'reply', 'template'))
     }
     catch (error) {
       errorMessage.value = formatPlanRequestError(error)
@@ -247,7 +247,7 @@ export function usePretripJourney() {
       role: 'assistant',
       kind: 'reply',
       mode: 'template',
-      text: '我感应到你已经到园啦！路线的第一站已经准备好，想出发时告诉我“开始导航”，我会把地图和路线直接发到这里。',
+      text: '欢迎入园！路线已经为你准备好了，点开上面的地图卡就可以查看园区地图和路线，我们出发吧！',
     })
   }
 
