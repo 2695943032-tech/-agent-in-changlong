@@ -6,6 +6,8 @@ import { parkMapMeta } from '#shared/data/parkGeometry.generated'
 import { parkLiveLandmarks, parkLiveRoads } from '#shared/data/parkLiveData.generated'
 import { routePath } from '#shared/utils/parkGeo'
 
+type ParkLandmark = (typeof parkLiveLandmarks)[number]
+
 const props = withDefaults(defineProps<{
   animals: readonly AnimalPoi[]
   routeZoneIds?: readonly AnimalId[]
@@ -34,6 +36,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   selectZone: [zone: AnimalPoi]
   selectService: [service: ParkService]
+  selectLandmark: [landmark: ParkLandmark]
 }>()
 
 const tileSize = 256
@@ -55,6 +58,12 @@ const sourcePixelDegrees = 0.000001
 const sourcePixelDivisor = computed(() => detailMode.value ? 1 : 4)
 const topLeftLongitude = 113.30305172543962
 const topLeftLatitude = 23.01306960279202
+// Some real POIs sit almost on top of each other on the overview image.
+// Offset only their interactive labels so each marker remains independently tappable.
+const markerOffsets: Partial<Record<AnimalId, { x: number, y: number }>> = {
+  koala: { x: -105, y: -105 },
+  elephant: { x: 120, y: 230 },
+}
 
 const tiles = computed(() => {
   const columns = tileColumns.value
@@ -150,6 +159,12 @@ function constrainPan() {
   pan.x = Math.max(-maxX, Math.min(maxX, pan.x))
   pan.y = Math.max(-maxY, Math.min(maxY, pan.y))
 }
+
+function markerPoint(zone: AnimalPoi) {
+  const point = geoToRasterPoint(zone)
+  const offset = markerOffsets[zone.id]
+  return { x: point.x + (offset?.x ?? 0), y: point.y + (offset?.y ?? 0) }
+}
 function setZoom(next: number) { zoom.value = Math.max(1.15, next); constrainPan() }
 function onWheel(event: WheelEvent) { event.preventDefault(); setZoom(zoom.value * (event.deltaY > 0 ? .88 : 1.14)) }
 function onPointerDown(event: PointerEvent) { drag = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; mapViewport.value?.setPointerCapture(event.pointerId) }
@@ -171,6 +186,10 @@ function selectZone(zone: AnimalPoi) {
 
 function selectService(service: ParkService) {
   if (props.interactive) emit('selectService', service)
+}
+
+function selectLandmark(landmark: ParkLandmark) {
+  if (props.interactive) emit('selectLandmark', landmark)
 }
 
 const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
@@ -248,9 +267,12 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             :role="interactive ? 'button' : undefined"
             :tabindex="interactive ? 0 : undefined"
             :aria-label="interactive ? `导航到${service.name}` : undefined"
+            @pointerdown.stop
+            @pointerup.stop="selectService(service)"
             @click.stop="selectService(service)"
             @keydown.enter.stop="selectService(service)"
           >
+            <rect x="-120" y="-120" width="240" height="240" rx="60" class="service-hit-area" />
             <rect x="-46" y="-46" width="92" height="92" rx="28" />
             <text y="16" text-anchor="middle">{{ serviceGlyphs[service.serviceKind] }}</text>
           </g>
@@ -262,6 +284,11 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             :key="landmark.id"
             class="landmark"
             :transform="`translate(${geoToRasterPoint(landmark).x} ${geoToRasterPoint(landmark).y})`"
+            :role="interactive ? 'button' : undefined"
+            :tabindex="interactive ? 0 : undefined"
+            @pointerdown.stop
+            @click.stop="selectLandmark(landmark)"
+            @keydown.enter.stop="selectLandmark(landmark)"
           >
             <circle r="18" />
             <text y="-28" text-anchor="middle">{{ landmark.name }}</text>
@@ -274,7 +301,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             :key="zone.id"
             class="zone"
             :class="{ current: currentZoneId === zone.id, completed: completedZoneIds.includes(zone.id), planned: routeZoneIds.includes(zone.id) }"
-            :transform="`translate(${geoToRasterPoint(zone).x} ${geoToRasterPoint(zone).y})`"
+            :transform="`translate(${markerPoint(zone).x} ${markerPoint(zone).y})`"
             :role="interactive ? 'button' : undefined"
             :tabindex="interactive ? 0 : undefined"
             :aria-label="interactive ? `模拟前往${zone.name}` : undefined"
@@ -283,7 +310,8 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             @keydown.enter.stop="selectZone(zone)"
           >
             <!-- The visible marker stays compact; this transparent circle makes the label area easy to tap. -->
-            <circle r="170" class="zone-hit-area" />
+            <circle r="105" class="zone-hit-area" />
+            <rect x="-145" y="66" width="290" height="95" class="zone-label-hit-area" />
             <circle r="64" class="zone-ring" />
             <circle r="46" class="zone-core" />
             <text y="16" text-anchor="middle">{{ routeZoneIds.includes(zone.id) ? routeZoneIds.indexOf(zone.id) + 1 : index + 1 }}</text>
@@ -308,7 +336,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 .surveyed-road { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .surveyed-road.footway,.surveyed-road.pedestrian,.surveyed-road.path,.surveyed-road.steps { stroke: rgba(255,255,255,.82); stroke-width: 12; }
 .surveyed-road.service,.surveyed-road.unclassified { stroke: rgba(124,96,53,.46); stroke-width: 15; }
-.landmark { pointer-events: none; }
+.landmark { pointer-events: none; }.interactive .landmark { cursor: pointer; pointer-events: all; }
 .landmark circle { fill: #fffaf0; stroke: #496b4d; stroke-width: 6; }
 .landmark text { paint-order: stroke; fill: #173f34; stroke: rgba(255,250,240,.92); stroke-width: 10px; stroke-linejoin: round; font-size: 32px; font-weight: 800; }
 .geofences ellipse { fill: rgba(211,155,69,.11); stroke: #c5974e; stroke-width: 10; stroke-dasharray: 30 25; }
@@ -321,6 +349,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 .actual-halo { stroke: rgba(255,250,240,.88); stroke-width: 36; }
 .actual-line { stroke: #2e7d68; stroke-width: 20; }
 .service-marker { cursor: pointer; outline: none; }
+.service-marker .service-hit-area { fill: transparent; stroke: transparent; pointer-events: all; }
 .service-marker rect { fill: #fffaf0; stroke: #174b3b; stroke-width: 9; }
 .service-marker text { fill: #174b3b; font-size: 37px; font-weight: 900; pointer-events: none; }
 .service-marker.demo rect { stroke-dasharray: 12 9; }
@@ -329,6 +358,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 .zone { cursor: default; outline: none; }
 .interactive .zone { cursor: pointer; }
 .zone-hit-area { fill: transparent; stroke: transparent; pointer-events: all; }
+.zone-label-hit-area { fill: transparent; stroke: transparent; pointer-events: all; }
 .zone-ring { fill: #fffaf0; stroke: #174b3b; stroke-width: 12; }
 .zone-core { fill: #174b3b; }
 .zone.planned .zone-core { fill: #c95237; }

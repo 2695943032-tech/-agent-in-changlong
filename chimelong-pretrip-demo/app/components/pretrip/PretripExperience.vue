@@ -85,6 +85,7 @@ async function clearCache() {
       <AgentChat
         v-else-if="state.view === 'chat' && selectedCompanion"
         :companion="selectedCompanion"
+        :companions="catalog.companions"
         :step="journey.currentChatStep.value"
         :step-index="state.chatStepIndex"
         :profile="state.profile"
