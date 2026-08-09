@@ -210,7 +210,13 @@ const zoneInfo = computed(() => {
 })
 const zoneHeat = computed(() => selectedZone.value ? 48 + ((selectedZone.value.id.length * 11 + heatTick.value * 7) % 43) : 0)
 
-watch(() => props.messages.length, async () => {
+watch([
+  () => props.messages.length,
+  () => localMessages.value.length,
+  () => restroomRequest.value,
+  () => destinationRequest.value?.text,
+  () => props.plan,
+], async () => {
   await nextTick()
   messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'smooth' })
 })
@@ -248,6 +254,12 @@ watch(() => props.messages.length, async () => {
         </div>
       </div>
 
+      <button v-if="plan" class="location-card" type="button" @click="mapOpen = true">
+        <span class="location-pin">⌖</span>
+        <span><small>团团分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
+        <b>查看地图 ›</b>
+      </button>
+
       <div v-for="message in localMessages" :key="message.id" class="message-row" :class="message.role">
         <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
         <div class="message-bubble"><p>{{ message.text }}</p></div>
@@ -257,11 +269,6 @@ watch(() => props.messages.length, async () => {
         <span class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
         <div class="typing-bubble" aria-label="伙伴正在思考"><i /><i /><i /></div>
       </div>
-      <button v-if="plan" class="location-card" type="button" @click="mapOpen = true">
-        <span class="location-pin">⌖</span>
-        <span><small>团团分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
-        <b>查看地图 ›</b>
-      </button>
       <template v-if="restroomRequest">
         <div class="message-row user"><div class="message-bubble"><p>我要去厕所</p></div></div>
         <div class="message-row assistant restroom-answer">

@@ -135,7 +135,7 @@ const emit = defineEmits<{
   box-shadow: 0 0 0 4px rgba(126, 210, 159, 0.12);
 }
 
-.selection-content { height: calc(100dvh - 168px - env(safe-area-inset-top)); padding: 16px 14px 10px; }
+.selection-content { height: calc(100dvh - 168px - env(safe-area-inset-top)); padding: 14px 14px 8px; }
 
 .section-heading span {
   color: var(--accent-dark);
@@ -151,14 +151,21 @@ const emit = defineEmits<{
   font-size: 24px;
 }
 
-.agent-list { display: grid; height: calc(100% - 60px); grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.agent-list {
+  display: grid;
+  width: 100%;
+  height: min(calc(100% - 54px), 408px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
 
 .agent-card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 26px;
+  grid-template-columns: 74px minmax(0, 1fr) 24px;
   align-items: center;
   min-height: 0;
-  padding: 9px;
+  padding: 10px 8px;
   gap: 6px;
   border: 1px solid color-mix(in srgb, var(--agent-accent) 32%, var(--line));
   border-radius: var(--radius-panel);
@@ -177,8 +184,9 @@ const emit = defineEmits<{
 .agent-portrait {
   position: relative;
   display: block;
-  width: 58px;
-  aspect-ratio: 1;
+  width: 72px;
+  height: 88px;
+  aspect-ratio: auto;
   overflow: hidden;
   border-radius: 14px;
   background: linear-gradient(145deg, color-mix(in srgb, var(--agent-accent) 22%, #fff), #fff);
@@ -189,22 +197,13 @@ const emit = defineEmits<{
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center bottom;
   transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .agent-portrait small {
-  position: absolute;
-  right: 7px;
-  bottom: 7px;
-  padding: 4px 7px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 4px 12px rgba(18, 60, 50, 0.12);
-  color: var(--forest);
-  font-size: 10px;
-  font-weight: 800;
-  backdrop-filter: blur(8px);
+  display: none;
 }
 
 .agent-card:hover .agent-portrait img {
@@ -218,14 +217,14 @@ const emit = defineEmits<{
 
 .agent-copy > small {
   color: var(--agent-accent);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 800;
 }
 
 .agent-copy > strong {
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .agent-copy > span {
@@ -235,7 +234,7 @@ const emit = defineEmits<{
   font-size: 9px;
   line-height: 1.5;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
 }
 
 .agent-arrow {
@@ -294,15 +293,20 @@ const emit = defineEmits<{
 }
 
 @media (max-width: 390px) {
+  .agent-list { height: min(calc(100% - 54px), 360px); }
+
   .agent-card {
-    grid-template-columns: 88px 1fr 26px;
-    min-height: 126px;
-    padding: 10px;
-    gap: 10px;
+    grid-template-columns: 62px minmax(0, 1fr) 22px;
+    padding: 8px 7px;
+    gap: 5px;
   }
 
   .agent-portrait {
-    width: 88px;
+    width: 60px;
+    height: 72px;
   }
+
+  .agent-copy > strong { font-size: 16px; }
+  .agent-copy > span { font-size: 8px; }
 }
 </style>
