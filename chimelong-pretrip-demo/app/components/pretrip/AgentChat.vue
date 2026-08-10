@@ -596,9 +596,9 @@ watch([
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: auto auto minmax(220px, 1fr) auto;
-  min-height: 100dvh;
-  height: 100dvh;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 0;
+  height: var(--app-viewport-height, 100dvh);
   overflow: hidden;
   background: var(--paper);
 }
@@ -814,7 +814,7 @@ watch([
 .location-card small,.location-card em { color: var(--muted); font-size: 9px; font-style: normal; }
 .location-card strong { color: var(--forest); font-size: 12px; }
 .location-card b { color: var(--accent-dark); font-size: 10px; }
-.map-modal { position: fixed; z-index: 20; right: 50%; bottom: 8px; width: min(100% - 12px, 468px); height: min(96dvh, 850px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; border: 1px solid rgba(22,82,67,.14); border-radius: 28px; background: var(--paper); box-shadow: 0 -22px 60px rgba(21,58,48,.28); transform: translateX(50%); animation: map-rise 460ms cubic-bezier(.2,.9,.2,1); }
+.map-modal { position: fixed; z-index: 20; right: 50%; bottom: 8px; width: min(100% - 12px, 468px); height: min(calc(var(--app-viewport-height, 100dvh) - 16px), 850px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; border: 1px solid rgba(22,82,67,.14); border-radius: 28px; background: var(--paper); box-shadow: 0 -22px 60px rgba(21,58,48,.28); transform: translateX(50%); animation: map-rise 460ms cubic-bezier(.2,.9,.2,1); }
 .map-modal header { display: flex; align-items: center; justify-content: space-between; padding: max(14px, env(safe-area-inset-top)) 16px 14px; border-bottom: 1px solid var(--line); }
 .map-modal header div { display: grid; gap: 2px; }.map-modal header small { color: var(--accent-dark); font-size: 10px; }.map-modal header strong { color: var(--ink); font-size: 15px; }
 .map-modal header button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--forest); font-size: 24px; }

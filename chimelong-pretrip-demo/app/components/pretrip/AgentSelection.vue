@@ -66,8 +66,12 @@ const emit = defineEmits<{
 
 <style scoped>
 .selection-shell {
-  height: 100dvh;
-  overflow: hidden;
+  height: var(--app-viewport-height, 100dvh);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .selection-hero {
@@ -135,7 +139,9 @@ const emit = defineEmits<{
   box-shadow: 0 0 0 4px rgba(126, 210, 159, 0.12);
 }
 
-.selection-content { height: calc(100dvh - 168px - env(safe-area-inset-top)); padding: 14px 14px 8px; }
+.selection-content {
+  padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+}
 
 .section-heading span {
   color: var(--accent-dark);
@@ -154,9 +160,8 @@ const emit = defineEmits<{
 .agent-list {
   display: grid;
   width: 100%;
-  height: min(calc(100% - 54px), 408px);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(112px, 1fr));
   gap: 9px;
 }
 
@@ -293,7 +298,7 @@ const emit = defineEmits<{
 }
 
 @media (max-width: 390px) {
-  .agent-list { height: min(calc(100% - 54px), 360px); }
+  .agent-list { grid-template-rows: repeat(3, minmax(104px, 1fr)); }
 
   .agent-card {
     grid-template-columns: 62px minmax(0, 1fr) 22px;
@@ -308,5 +313,47 @@ const emit = defineEmits<{
 
   .agent-copy > strong { font-size: 16px; }
   .agent-copy > span { font-size: 8px; }
+}
+
+@media (max-height: 680px) {
+  .selection-hero { padding-bottom: 10px; }
+  .selection-hero h1 { margin-block: 7px 8px; font-size: clamp(27px, 8vw, 34px); }
+  .knowledge-badge { margin-top: 10px; }
+  .selection-content { padding-top: 10px; }
+  .section-heading h2 { margin-bottom: 10px; font-size: 21px; }
+  .agent-list { grid-template-rows: repeat(3, 90px); }
+  .agent-card { padding-block: 6px; }
+  .agent-portrait { height: 68px; }
+}
+
+@media (max-height: 560px) {
+  .selection-hero {
+    height: 132px;
+    padding: calc(68px + env(safe-area-inset-top)) 14px 8px;
+  }
+
+  .selection-kicker,
+  .knowledge-badge { display: none; }
+
+  .selection-hero h1 {
+    margin: 0;
+    font-size: 25px;
+    line-height: 1.12;
+    white-space: nowrap;
+  }
+
+  .selection-hero h1 br { display: none; }
+  .selection-hero h1 em { margin-left: .25em; }
+  .selection-content { padding: 7px 10px max(9px, env(safe-area-inset-bottom)); }
+  .section-heading span { font-size: 8px; }
+  .section-heading h2 { margin: 1px 0 6px; font-size: 18px; }
+  .agent-list { grid-template-rows: repeat(3, 82px); gap: 6px; }
+  .agent-card { grid-template-columns: 52px minmax(0, 1fr) 20px; padding: 5px 6px; gap: 4px; }
+  .agent-portrait { width: 50px; height: 56px; border-radius: 11px; }
+  .agent-copy { gap: 1px; }
+  .agent-copy > small { font-size: 6px; }
+  .agent-copy > strong { font-size: 14px; }
+  .agent-copy > span { font-size: 7px; -webkit-line-clamp: 2; }
+  .agent-arrow { width: 24px; height: 24px; border-radius: 8px; }
 }
 </style>

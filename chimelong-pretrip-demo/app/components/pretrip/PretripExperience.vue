@@ -23,6 +23,7 @@ const [{ data: catalog, status, error }, { data: aiStatus }] = await Promise.all
 const journey = usePretripJourney()
 const park = useParkJourney()
 const journeyRecords = useJourneyRecords()
+useAppViewportHeight()
 const state = journey.state
 const selectedCompanion = computed(() => catalog.value?.companions.find(item => item.id === state.value.companionId) ?? null)
 const presence = useParkPresence()
@@ -125,7 +126,7 @@ async function clearCache() {
 <style scoped>
 .app-frame {
   width: min(100%, 480px);
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height, 100dvh);
   margin: 0 auto;
   overflow: hidden;
   background: var(--paper);
@@ -135,7 +136,7 @@ async function clearCache() {
 .state-screen,
 .generating-screen {
   display: grid;
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height, 100dvh);
   padding: 34px;
   place-content: center;
   place-items: center;
