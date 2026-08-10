@@ -15,6 +15,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "nuxt": "^4.4.8",
     "vue": "^3.5.39",
     "vue-router": "^5.1.0"

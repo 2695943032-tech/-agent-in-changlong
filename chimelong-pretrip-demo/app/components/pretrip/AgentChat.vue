@@ -11,14 +11,16 @@ import type {
 } from '../../../shared/types/pretrip'
 import type { JourneyMessage } from '../../composables/usePretripJourney'
 import type { ParkNavigationRoute, ParkNavigationTarget, ParkService } from '../../../shared/types/park'
+import type { OperationsState } from '../../../shared/types/operations'
 import { parkServices } from '#shared/data/parkServices'
 import { parkLiveLandmarks } from '#shared/data/parkLiveData.generated'
-import { parkMapPoints } from '#shared/data/parkGeometry.generated'
+import { parkMapMeta, parkMapPoints } from '#shared/data/parkGeometry.generated'
 import { zoneExperienceConfigs } from '#shared/data/zoneExperience'
-import { navigationRouteFromPosition } from '#shared/utils/parkGeo'
+import { haversineMeters, navigationRouteFromPosition, projectGeoPoint, walkingMinutes } from '#shared/utils/parkGeo'
 import ChatAnswerPanel from './ChatAnswerPanel.vue'
 import DraggableCompanion from './DraggableCompanion.vue'
 import ParkRasterMap from '../map/ParkRasterMap.vue'
+import AgentPhotoComposer from './AgentPhotoComposer.vue'
 
 const props = defineProps<{
   companion: Companion
@@ -45,27 +47,60 @@ const emit = defineEmits<{
 }>()
 
 const messageList = useTemplateRef<HTMLElement>('messageList')
-const activeCompanion = shallowRef<Companion | null>(null)
+const activeCompanion = useState<Companion | null>('pretrip-active-companion', () => null)
 const currentCompanion = computed(() => activeCompanion.value ?? props.companion)
+const agentUnlocks = useAgentUnlocks()
+const fieldObservations = useFieldObservations()
 const unlockOffer = shallowRef<{ zone: AnimalPoi, companion: Companion } | null>(null)
+const merchOffer = shallowRef<Companion | null>(null)
+const merchAdded = shallowRef(false)
+const merchBagOpen = shallowRef(false)
+const merchBagIds = ref<Companion['id'][]>([])
+const merchOrdering = shallowRef(false)
+const operationsState = shallowRef<OperationsState | null>(null)
+let operationsTimer: ReturnType<typeof setInterval> | undefined
 const learningZoneId = shallowRef<AnimalPoi['id'] | null>(null)
 const scienceAnswer = shallowRef<string | null>(null)
 const learningConfig = computed(() => learningZoneId.value ? zoneExperienceConfigs[learningZoneId.value] : null)
+const merchCatalog: Record<Companion['id'], { name: string, price: string, description: string, badge: string }> = {
+  panda: { name: '团团竹林伙伴毛绒挂件', price: '¥59', description: '柔软短绒材质，附“竹林观察员”限定身份牌。', badge: '熊猫村限定' },
+  tiger: { name: '凯凯虎纹探险徽章', price: '¥39', description: '金属珐琅徽章，记录你完成的虎园观察挑战。', badge: '虎园限定' },
+  koala: { name: '悠米慢游考拉挂件', price: '¥55', description: '考拉 Agent 同款造型，可挂在儿童背包或钥匙圈上。', badge: '考拉园限定' },
+  elephant: { name: '潺潺象群守护水杯', price: '¥79', description: '儿童友好吸管杯，附大象科普贴纸一套。', badge: '亚洲象园限定' },
+  giraffe: { name: '长乐高空观察员帽', price: '¥69', description: '轻量儿童遮阳帽，带长颈鹿观察员刺绣标。', badge: '长颈鹿园限定' },
+  gorilla: { name: '阿悟森林解谜贴纸册', price: '¥45', description: '包含灵长类科普贴纸和园区闯关记录页。', badge: '黑猩猩馆限定' },
+}
+const currentMerch = computed(() => merchOffer.value ? merchCatalog[merchOffer.value.id] : null)
+const currentMerchStock = computed(() => merchOffer.value ? operationsState.value?.merchStock[merchOffer.value.id] ?? 1 : 0)
+const merchSoldOut = computed(() => currentMerchStock.value <= 0)
+const merchBagItems = computed(() => merchBagIds.value.flatMap((id) => {
+  const companion = props.companions.find(item => item.id === id)
+  return companion ? [{ companion, product: merchCatalog[id] }] : []
+}))
+const merchBagTotal = computed(() => merchBagItems.value.reduce((total, item) => total + Number(item.product.price.replace(/\D/g, '')), 0))
 const progress = computed(() => Math.round(((props.stepIndex + 1) / 7) * 100))
 const reactionKey = shallowRef(0)
 const mapOpen = shallowRef(false)
 const mapSearch = shallowRef('')
+const testPanelOpen = shallowRef(false)
+const testTime = shallowRef('real')
+const testZoneId = shallowRef('')
+const diningOffer = shallowRef<ParkService | null>(null)
 const presence = useParkPresence()
 const selectedZone = shallowRef<AnimalPoi | null>(null)
 const heatTick = shallowRef(0)
 let heatTimer: ReturnType<typeof setInterval> | undefined
-const animalStates = ['营业中', '进食中', '睡觉中'] as const
-const animalStateIndex = shallowRef(0)
-const animalState = computed(() => animalStates[animalStateIndex.value]!)
-let animalStateTimer: ReturnType<typeof setInterval> | undefined
-onMounted(() => { animalStateTimer = setInterval(() => { animalStateIndex.value = (animalStateIndex.value + 1) % animalStates.length }, 8000) })
+const animalState = computed(() => operationsState.value?.zones[currentCompanion.value.id]?.status ?? '营业中')
 onMounted(() => { heatTimer = setInterval(() => { heatTick.value += 1 }, 6000) })
 onMounted(() => presence.start())
+async function refreshOperations() {
+  try { operationsState.value = await $fetch<OperationsState>('/api/admin/state') }
+  catch { /* Keep the visitor flow usable if the local admin API is temporarily unavailable. */ }
+}
+onMounted(() => {
+  void refreshOperations()
+  operationsTimer = setInterval(refreshOperations, 3000)
+})
 onMounted(() => {
   checkShowReminders()
   showReminderTimer = setInterval(checkShowReminders, 30_000)
@@ -77,20 +112,125 @@ function handleComposerKeydown(event: KeyboardEvent) {
   sendChat()
 }
 onMounted(() => window.addEventListener('keydown', handleComposerKeydown))
-onBeforeUnmount(() => { if (animalStateTimer) clearInterval(animalStateTimer); if (heatTimer) clearInterval(heatTimer); if (showReminderTimer) clearInterval(showReminderTimer) })
+onBeforeUnmount(() => { if (heatTimer) clearInterval(heatTimer); if (showReminderTimer) clearInterval(showReminderTimer); if (operationsTimer) clearInterval(operationsTimer) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleComposerKeydown))
 const toolsOpen = shallowRef(false)
 const voiceActive = shallowRef(false)
 const composerText = shallowRef('')
+const lostChildOpen = shallowRef(false)
+const lostChildSubmitting = shallowRef(false)
+const lostChildForm = reactive({ name: '', appearance: '', location: '', guardianPhone: '' })
+const canSubmitLostChild = computed(() => Boolean(!lostChildSubmitting.value && lostChildForm.name.trim() && lostChildForm.appearance.trim() && lostChildForm.location.trim() && lostChildForm.guardianPhone.trim()))
 type LocalTimelineItem =
-  | { id: string, type: 'message', role: 'user' | 'assistant', text: string }
-  | { id: string, type: 'map' }
-  | { id: string, type: 'show-reminder', service: ParkService, route: ParkNavigationRoute, startLabel: string }
+  | { id: string, type: 'message', role: 'user' | 'assistant', text: string, agentName?: string, createdAt?: number }
+  | { id: string, type: 'map', createdAt?: number }
+  | { id: string, type: 'photo', dataUrl: string, agentName: string, usedAi: boolean, createdAt?: number }
+  | { id: string, type: 'restroom-results', choices: Array<{ service: ParkService, route: ParkNavigationRoute, queue: number }>, createdAt?: number }
+  | { id: string, type: 'destination-results', kind: 'restaurant' | 'animal' | 'train', choices: Array<{ target: ParkNavigationTarget, detail: string, route: ParkNavigationRoute }>, createdAt?: number }
+  | { id: string, type: 'posttrip', createdAt?: number }
+  | { id: string, type: 'test-location', location: { kind: 'animal', zone: AnimalPoi, companion: Companion, unlocked?: boolean, scienceAnswer?: string } | { kind: 'dining', service: ParkService }, createdAt?: number }
+  | { id: string, type: 'show-reminder', service: ParkService, route: ParkNavigationRoute, startLabel: string, createdAt?: number }
 
-const localMessages = ref<LocalTimelineItem[]>([])
+const localMessages = useState<LocalTimelineItem[]>('pretrip-local-messages', () => [])
+type PriorityTimelineItem = Extract<LocalTimelineItem, { type: 'show-reminder' | 'posttrip' | 'test-location' }>
+
+onMounted(() => {
+  if (activeCompanion.value) agentUnlocks.unlock(activeCompanion.value.id)
+  for (const message of localMessages.value) {
+    if (message.type === 'test-location' && message.location.kind === 'animal' && message.location.unlocked) {
+      agentUnlocks.unlock(message.location.companion.id)
+    }
+  }
+})
+
+function timelineTimestamp(message: LocalTimelineItem) {
+  if (message.createdAt) return message.createdAt
+  const timestamp = message.id.match(/^(\d{13})/)?.[1]
+  return timestamp ? Number(timestamp) : null
+}
+
+function shouldShowTimelineTime(index: number) {
+  const current = timelineTimestamp(localMessages.value[index]!)
+  if (current === null) return false
+  for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
+    const previous = timelineTimestamp(localMessages.value[previousIndex]!)
+    if (previous !== null) return Math.abs(current - previous) >= 10 * 60 * 1000
+  }
+  return true
+}
+
+function formatTimelineTime(message: LocalTimelineItem) {
+  const timestamp = timelineTimestamp(message)
+  if (timestamp === null) return ''
+  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(timestamp)
+}
+const priorityMessages = computed(() => localMessages.value
+  .filter((message): message is PriorityTimelineItem => message.type === 'show-reminder' || message.type === 'posttrip' || message.type === 'test-location'))
+// 优先事件现已直接在 localMessages 主时间线渲染；保留空集合仅兼容旧模板结构，避免重复显示。
+const separatedPriorityMessages = computed<PriorityTimelineItem[]>(() => [])
+
+function nextPriorityTimestamp(preferred = Date.now()) {
+  const previous = priorityMessages.value.at(-1)
+  const previousTimestamp = previous ? timelineTimestamp(previous) : null
+  if (previousTimestamp === null) return preferred
+  // 测试消息严格按按钮点击顺序追加；时间只作为聊天分层展示，绝不用于重新排序。
+  return Math.max(preferred, previousTimestamp + 11 * 60 * 1000)
+}
+
+function shouldShowPriorityTime(index: number) {
+  const current = timelineTimestamp(priorityMessages.value[index]!)
+  if (current === null || index === 0) return true
+  const previous = timelineTimestamp(priorityMessages.value[index - 1]!)
+  return previous === null || Math.abs(current - previous) >= 10 * 60 * 1000
+}
 const journeyMessages = computed(() => props.messages.filter(message => message.id !== 'park-arrival'))
 const arrivalMessage = computed(() => props.messages.find(message => message.id === 'park-arrival') ?? null)
 const photoInput = useTemplateRef<HTMLInputElement>('photoInput')
+const photoSourceFile = shallowRef<File | null>(null)
+const photoComposerOpen = shallowRef(false)
+const photoStickerSources = computed(() => {
+  const stickerSets: Record<Companion['id'], string[]> = {
+    panda: [
+      '/companions/panda-companion.webp',
+      '/companions/photo-stickers/panda-wave.png',
+      '/companions/photo-stickers/panda-map.png',
+      '/companions/photo-stickers/panda-binoculars.png',
+      '/companions/photo-stickers/panda-drink.png',
+      '/companions/photo-stickers/panda-celebrate.png',
+    ],
+    elephant: [
+      '/companions/photo-stickers/elephant-walk.png',
+      '/companions/photo-stickers/elephant-wave.png',
+      '/companions/photo-stickers/elephant-jump.png',
+      '/companions/photo-stickers/elephant-sit.png',
+    ],
+    giraffe: [
+      '/companions/photo-stickers/giraffe-walk.png',
+      '/companions/photo-stickers/giraffe-wave.png',
+      '/companions/photo-stickers/giraffe-jump.png',
+      '/companions/photo-stickers/giraffe-sit.png',
+    ],
+    tiger: [
+      '/companions/photo-stickers/tiger-walk.png',
+      '/companions/photo-stickers/tiger-wave.png',
+      '/companions/photo-stickers/tiger-jump.png',
+      '/companions/photo-stickers/tiger-sit.png',
+    ],
+    gorilla: [
+      '/companions/photo-stickers/gorilla-walk.png',
+      '/companions/photo-stickers/gorilla-wave.png',
+      '/companions/photo-stickers/gorilla-jump.png',
+      '/companions/photo-stickers/gorilla-sit.png',
+    ],
+    koala: [
+      '/companions/photo-stickers/koala-walk.png',
+      '/companions/photo-stickers/koala-wave.png',
+      '/companions/photo-stickers/koala-jump.png',
+      '/companions/photo-stickers/koala-sit.png',
+    ],
+  }
+  return stickerSets[currentCompanion.value.id] ?? [currentCompanion.value.chatCharacterImage]
+})
 const restroomRequest = shallowRef(false)
 const destinationRequest = shallowRef<{ text: string, kind: 'restaurant' | 'animal' | 'train' } | null>(null)
 const activeDestination = shallowRef<ParkNavigationTarget | null>(null)
@@ -101,13 +241,154 @@ let showReminderTimer: ReturnType<typeof setInterval> | undefined
 type ParkLandmark = (typeof parkLiveLandmarks)[number]
 const selectedService = shallowRef<ParkService | null>(null)
 const selectedLandmark = shallowRef<ParkLandmark | null>(null)
-const demoPosition = parkMapPoints.panda
+const demoPosition = reactive({ ...parkMapPoints.panda })
+function pickupPoint(id: string, name: string, detail: string, x: number, y: number): ParkService {
+  return {
+    id,
+    kind: 'service',
+    serviceKind: 'retail',
+    name,
+    detail,
+    aliases: ['周边领取', '纪念品', '线上订单', '自提'],
+    source: 'demo',
+    x: x / 10,
+    y: y / 9.51,
+    longitude: parkMapMeta.bounds.minLon + (x / parkMapMeta.viewWidth) * (parkMapMeta.bounds.maxLon - parkMapMeta.bounds.minLon),
+    latitude: parkMapMeta.bounds.maxLat - (y / parkMapMeta.viewHeight) * (parkMapMeta.bounds.maxLat - parkMapMeta.bounds.minLat),
+  }
+}
+const merchPickupPoints: ParkService[] = [
+  pickupPoint('service-merch-pickup-south', '南门周边领取点', '南门出口服务区 · 线上订单自提', 950.2, 852.2),
+  pickupPoint('service-merch-pickup-north', '北门周边领取点', '北门停车场入口 · 线上订单自提', 523.6, 40.3),
+]
+const mapServices = [...parkServices, ...merchPickupPoints]
+const merchPickupRoutes = computed(() => merchPickupPoints.flatMap((service) => {
+  try { return [{ service, route: navigationRouteFromPosition(demoPosition, service) }] }
+  catch { return [] }
+}))
 const showTimes = ['10:30', '13:00', '15:30']
+const diningTestServices = parkServices.filter(service => service.serviceKind === 'dining')
+const restaurantMenuData: Record<string, {
+  childMeal: string
+  allergyNotice: string
+  dishes: Array<{ name: string, price: string, allergens: string }>
+}> = {
+  'service-dining-panda': {
+    childMeal: '提供儿童餐，可选少盐、少油和小份主食。',
+    allergyNotice: '下单前请主动告知工作人员；厨房同时处理含麸质、蛋、奶和坚果的食材。',
+    dishes: [
+      { name: '熊猫竹香鸡肉饭', price: '¥48', allergens: '含麸质、大豆' },
+      { name: '儿童蔬菜肉丸餐', price: '¥38', allergens: '含蛋、奶' },
+      { name: '竹叶青团甜品', price: '¥22', allergens: '含乳制品、糯米' },
+    ],
+  },
+  'service-dining-koala': {
+    childMeal: '提供儿童套餐和不辣选项，可分装为小份。',
+    allergyNotice: '摊位食材不同，请逐个确认；部分小吃含花生、芝麻、海鲜和麸质。',
+    dishes: [
+      { name: '考拉牛肉卷', price: '¥36', allergens: '含麸质、奶' },
+      { name: '亲子迷你披萨', price: '¥42', allergens: '含麸质、奶' },
+      { name: '鲜果酸奶杯', price: '¥25', allergens: '含乳制品' },
+    ],
+  },
+  'service-dining-birds': {
+    childMeal: '提供儿童餐具，可将主食制作成小份。',
+    allergyNotice: '部分菜品含蛋、奶、坚果及甲壳类食材，严重过敏游客请先咨询工作人员。',
+    dishes: [
+      { name: '飞禽缤纷鸡肉面', price: '¥46', allergens: '含麸质、蛋' },
+      { name: '儿童玉米鸡肉饭', price: '¥36', allergens: '含大豆' },
+      { name: '鹦鹉彩虹果杯', price: '¥24', allergens: '可能含坚果' },
+    ],
+  },
+}
+const diningMenu = computed(() => diningOffer.value ? restaurantMenuData[diningOffer.value.id] ?? null : null)
+
+function simulatedNow() {
+  const now = new Date()
+  if (testTime.value === 'real') return now
+  const [hours, minutes] = testTime.value.split(':').map(Number)
+  now.setHours(hours!, minutes!, 0, 0)
+  return now
+}
+
+function applyTestTime() {
+  announcedShows.clear()
+  checkShowReminders()
+}
+
+function applyTestZone() {
+  const zone = props.animals.find(item => item.id === testZoneId.value)
+  const dining = diningTestServices.find(item => item.id === testZoneId.value)
+  const location = zone ?? dining
+  if (!location) return
+  Object.assign(demoPosition, { longitude: location.longitude, latitude: location.latitude, x: location.x, y: location.y })
+  activeNavigation.value = null
+  activeDestination.value = null
+  activeRestroom.value = null
+  if (zone) {
+    const companion = props.companions.find(item => item.id === zone.id)
+    diningOffer.value = null
+    merchOffer.value = null
+    unlockOffer.value = null
+    learningZoneId.value = null
+    scienceAnswer.value = null
+    if (companion) {
+      localMessages.value.push({
+        id: `${Date.now()}-test-zone`,
+        type: 'test-location',
+        location: { kind: 'animal', zone, companion },
+        createdAt: nextPriorityTimestamp(),
+      })
+    }
+    void scrollToLatest()
+    return
+  }
+  unlockOffer.value = null
+  learningZoneId.value = null
+  scienceAnswer.value = null
+  diningOffer.value = null
+  if (dining) {
+    localMessages.value.push({
+      id: `${Date.now()}-test-dining`,
+      type: 'test-location',
+      location: { kind: 'dining', service: dining },
+      createdAt: nextPriorityTimestamp(),
+    })
+    void scrollToLatest()
+  }
+}
+
+function unlockTestLocation(message: PriorityTimelineItem) {
+  if (message.type !== 'test-location' || message.location.kind !== 'animal') return
+  message.location.unlocked = true
+  activeCompanion.value = message.location.companion
+  agentUnlocks.unlock(message.location.companion.id)
+  void scrollToLatest()
+}
+
+function answerTestLocationScience(message: PriorityTimelineItem, choice: string) {
+  if (message.type !== 'test-location' || message.location.kind !== 'animal') return
+  message.location.scienceAnswer = choice
+  fieldObservations.complete(message.location.zone.id)
+}
+
+function addTestMerchToBag(companion: Companion) {
+  const stock = operationsState.value?.merchStock[companion.id] ?? 1
+  if (stock <= 0 || merchBagIds.value.includes(companion.id)) return
+  merchBagIds.value.push(companion.id)
+  void scrollToLatest()
+}
+
+function simulateLeavingPark() {
+  testPanelOpen.value = false
+  localMessages.value.push({ id: `${Date.now()}-posttrip`, type: 'posttrip', createdAt: nextPriorityTimestamp() })
+  void scrollToLatest()
+}
 
 function checkShowReminders() {
   const venue = parkServices.find(service => service.serviceKind === 'show')
   if (!venue) return
-  const now = new Date()
+  const now = simulatedNow()
   for (const startLabel of showTimes) {
     const [hours, minutes] = startLabel.split(':').map(Number)
     const start = new Date(now)
@@ -117,7 +398,7 @@ function checkShowReminders() {
     if (minutesUntil > 30 || minutesUntil < 0 || announcedShows.has(key)) continue
     announcedShows.add(key)
     try {
-      localMessages.value.push({ id: `show-${key}`, type: 'show-reminder', service: venue, route: navigationRouteFromPosition(demoPosition, venue), startLabel })
+      localMessages.value.push({ id: `show-${key}`, type: 'show-reminder', service: venue, route: navigationRouteFromPosition(demoPosition, venue), startLabel, createdAt: nextPriorityTimestamp(now.getTime()) })
       void scrollToLatest()
     }
     catch { /* the message can safely wait for the next location update */ }
@@ -150,9 +431,25 @@ const trainStations: Array<{ target: ParkNavigationTarget, detail: string }> = [
   { target: { id: 'train-koala', kind: 'service', name: '考拉园小火车站', longitude: 113.309833, latitude: 23.0046 }, detail: '考拉园小火车站 · 可换乘观光环线' },
   { target: { id: 'train-north', kind: 'service', name: '北区小火车站', longitude: 113.30785, latitude: 23.0071 }, detail: '北区小火车站 · 靠近北区展区' },
 ]
-const destinationChoices = computed(() => {
-  const request = destinationRequest.value
-  if (!request) return []
+
+function safeNavigationRoute(target: ParkNavigationTarget): ParkNavigationRoute {
+  try {
+    return navigationRouteFromPosition(demoPosition, target)
+  }
+  catch {
+    // 少量 GIS 点位可能暂未接入完整步行图；仍需向游客返回可用的距离排序结果。
+    const distanceMeters = Math.max(1, Math.round(haversineMeters(demoPosition, target) * 1.18))
+    return {
+      target,
+      distanceMeters,
+      walkingMinutes: walkingMinutes(distanceMeters),
+      path: [projectGeoPoint(demoPosition), projectGeoPoint(target)],
+      startedAt: new Date().toISOString(),
+    }
+  }
+}
+
+function buildDestinationChoices(request: { text: string, kind: 'restaurant' | 'animal' | 'train' }) {
   const normalized = request.text.replace(/我要去|带我去|我想|想吃|吃饭|吃点东西|吃东西|吃点|用餐|餐饮|餐厅|美食街|美食|饿了|饿|喝点|饮品|展区|附近|推荐|去哪|哪里|园/g, '')
   const query = request.kind === 'train' || (request.kind === 'restaurant' && !/熊猫|考拉|飞禽/.test(normalized)) ? '' : normalized
   const candidates: Array<{ target: ParkNavigationTarget, detail: string }> = request.kind === 'restaurant'
@@ -162,16 +459,14 @@ const destinationChoices = computed(() => {
       : props.animals.map(zone => ({ target: { id: zone.id, kind: 'animal' as const, name: zone.name, longitude: zone.longitude, latitude: zone.latitude }, detail: `${zone.name}展区` }))
   return candidates
     .filter(item => !query || item.detail.includes(query) || item.target.name.includes(query))
-    .flatMap(item => {
-      try { return [{ ...item, route: navigationRouteFromPosition(demoPosition, item.target) }] }
-      catch { return [] }
-    })
+    .map(item => ({ ...item, route: safeNavigationRoute(item.target) }))
     .sort((a, b) => a.route.distanceMeters - b.route.distanceMeters)
-})
+}
+const destinationChoices = computed(() => destinationRequest.value ? buildDestinationChoices(destinationRequest.value) : [])
 const searchMatches = computed(() => {
   const query = mapSearch.value.trim().toLowerCase()
   if (!query) return []
-  return [...props.animals.map(item => ({ id: item.id, label: item.name, type: '动物展区', zone: item })), ...parkServices.map(item => ({ id: item.id, label: item.name, type: '园区服务', service: item }))]
+  return [...props.animals.map(item => ({ id: item.id, label: item.name, type: '动物展区', zone: item })), ...mapServices.map(item => ({ id: item.id, label: item.name, type: '园区服务', service: item }))]
     .filter(item => item.label.toLowerCase().includes(query)).slice(0, 5)
 })
 function selectSearchMatch(match: { zone?: AnimalPoi, service?: ParkService }) {
@@ -180,25 +475,11 @@ function selectSearchMatch(match: { zone?: AnimalPoi, service?: ParkService }) {
   mapSearch.value = ''
 }
 
-const zoneAliases: Record<AnimalPoi['id'], string[]> = {
-  panda: ['熊猫村', '熊猫馆', '熊猫展区'],
-  tiger: ['虎园', '老虎园', '白虎园', '虎区'],
-  koala: ['考拉园', '考拉展区', '考拉馆'],
-  elephant: ['亚洲象园', '大象园', '大象展区'],
-  giraffe: ['长颈鹿园', '长颈鹿展区', '长颈鹿区'],
-  gorilla: ['黑猩猩馆', '黑猩猩园', '黑猩猩展区'],
-}
-
-function arrivedZoneFromText(text: string) {
-  if (!/(我)?(到|到了|到达|已到|已经到)/.test(text)) return null
-  return props.animals.find(zone => text.includes(zone.name) || zoneAliases[zone.id].some(alias => text.includes(alias))) ?? null
-}
-
 function offerAnimalAgent(zone: AnimalPoi) {
   const companion = props.companions.find(item => item.id === zone.id)
   if (!companion) return
   unlockOffer.value = { zone, companion }
-  localMessages.value.push({ id: `${Date.now()}-unlock`, type: 'message', role: 'assistant', text: `你已到达${zone.name}，解锁了 ${companion.name} 的动物 Agent。` })
+  localMessages.value.push({ id: `${Date.now()}-unlock`, type: 'message', role: 'assistant', text: `你已到达${zone.name}，解锁了 ${companion.name} 的动物 Agent。`, createdAt: simulatedNow().getTime() })
   void scrollToLatest()
 }
 
@@ -206,6 +487,9 @@ function unlockAnimalAgent() {
   const offer = unlockOffer.value
   if (!offer) return
   activeCompanion.value = offer.companion
+  agentUnlocks.unlock(offer.companion.id)
+  merchOffer.value = offer.companion
+  merchAdded.value = merchBagIds.value.includes(offer.companion.id)
   const experience = zoneExperienceConfigs[offer.zone.id]
   learningZoneId.value = offer.zone.id
   scienceAnswer.value = null
@@ -214,6 +498,7 @@ function unlockAnimalAgent() {
     type: 'message',
     role: 'assistant',
     text: `我是${offer.companion.name}，${offer.companion.species}。${offer.zone.description} ${experience.lifeHabits}`,
+    createdAt: simulatedNow().getTime(),
   })
   unlockOffer.value = null
   void scrollToLatest()
@@ -221,42 +506,109 @@ function unlockAnimalAgent() {
 
 function answerScienceQuestion(choice: string) {
   scienceAnswer.value = choice
+  if (learningZoneId.value) fieldObservations.complete(learningZoneId.value)
 }
 
-async function sendChat() {
-  const text = composerText.value.trim()
+function addMerchToBag() {
+  if (!merchOffer.value || !currentMerch.value || merchAdded.value || merchSoldOut.value) return
+  merchBagIds.value.push(merchOffer.value.id)
+  merchAdded.value = true
+  localMessages.value.push({
+    id: `${Date.now()}-merch`,
+    type: 'message',
+    role: 'assistant',
+    text: `${currentMerch.value.name}已加入纪念袋。演示版本暂不付款，正式上线后可选择园区自提或快递到家。`,
+    createdAt: simulatedNow().getTime(),
+  })
+  void scrollToLatest()
+}
+
+async function submitMerchOrder() {
+  if (!merchBagIds.value.length || merchOrdering.value) return
+  merchOrdering.value = true
+  try {
+    const orderedCount = merchBagIds.value.length
+    operationsState.value = await $fetch<OperationsState>('/api/admin/order', {
+      method: 'POST',
+      body: { ids: [...merchBagIds.value] },
+    })
+    merchBagIds.value = []
+    merchAdded.value = false
+    merchBagOpen.value = false
+    localMessages.value.push({
+      id: `${Date.now()}-merch-order`,
+      type: 'message',
+      role: 'assistant',
+      text: `下单成功，共 ${orderedCount} 件。纪念礼品已经为你预留，请前往园区周边领取点领取。`,
+      createdAt: simulatedNow().getTime(),
+    })
+    void scrollToLatest()
+  }
+  catch {
+    localMessages.value.push({
+      id: `${Date.now()}-merch-order-error`,
+      type: 'message',
+      role: 'assistant',
+      text: '下单没有完成，可能有商品已经售罄，请刷新库存后重试。',
+      createdAt: simulatedNow().getTime(),
+    })
+  }
+  finally {
+    merchOrdering.value = false
+  }
+}
+
+function showRestaurantMenuFromChat(text: string) {
+  if (!/菜单|菜品|有什么菜|有什么吃|儿童餐|过敏原|忌口/.test(text)) return false
+  const venue = diningTestServices.find((service) => {
+    if (text.includes('熊猫')) return service.id === 'service-dining-panda'
+    if (text.includes('考拉') || text.includes('小吃街') || text.includes('食街')) return service.id === 'service-dining-koala'
+    if (text.includes('飞禽') || text.includes('鸟')) return service.id === 'service-dining-birds'
+    return text.includes(service.name)
+  })
+  if (!venue) return false
+  diningOffer.value = venue
+  destinationRequest.value = null
+  localMessages.value.push({
+    id: `${Date.now()}-menu-answer`,
+    type: 'message',
+    role: 'assistant',
+    text: `这是${venue.name}的演示菜单。我也标出了儿童餐和主要过敏原，正式供应请以餐厅当天公示为准。`,
+    createdAt: simulatedNow().getTime(),
+  })
+  void scrollToLatest()
+  return true
+}
+
+async function sendChat(presetText?: string) {
+  const text = (presetText ?? composerText.value).trim()
   if (!text) return
   composerText.value = ''
   // A destination card belongs to the question that created it; don't leave it under later chat replies.
   restroomRequest.value = false
   destinationRequest.value = null
-  localMessages.value.push({ id: `${Date.now()}-u`, type: 'message', role: 'user', text })
-  const arrivedZone = arrivedZoneFromText(text)
-  if (arrivedZone) {
-    offerAnimalAgent(arrivedZone)
-    emit('arrive')
-    return
-  }
+  localMessages.value.push({ id: `${Date.now()}-u`, type: 'message', role: 'user', text, createdAt: simulatedNow().getTime() })
+  if (showRestaurantMenuFromChat(text)) return
   if (/我(?:到|进)(?:了|啦)|到园(?:了|啦)?|进园(?:了|啦)?|已经到(?:了|啦)/.test(text)) {
     emit('arrive')
     return
   }
   if (/厕所|洗手间|卫生间/.test(text)) {
-    restroomRequest.value = true
-    destinationRequest.value = null
+    localMessages.value.push({ id: `${Date.now()}-restroom-results`, type: 'restroom-results', choices: [...restroomChoices.value], createdAt: simulatedNow().getTime() + 1000 })
     toolsOpen.value = false
-    nextTick(() => messageList.value?.scrollTo({ top: messageList.value?.scrollHeight ?? 0, behavior: 'smooth' }))
+    void scrollToLatest()
   }
   else if (/小火车|观光车|环线车/.test(text)) {
-    destinationRequest.value = { text, kind: 'train' }
+    localMessages.value.push({ id: `${Date.now()}-train-results`, type: 'destination-results', kind: 'train', choices: buildDestinationChoices({ text, kind: 'train' }), createdAt: simulatedNow().getTime() + 1000 })
+    void scrollToLatest()
   }
   else if (/餐厅|吃饭|用餐|餐饮|吃东西|吃点|吃的|好吃|食物|美食|饿了|饿|喝点|饮品/.test(text)) {
-    destinationRequest.value = { text, kind: 'restaurant' }
-    restroomRequest.value = false
+    localMessages.value.push({ id: `${Date.now()}-restaurant-results`, type: 'destination-results', kind: 'restaurant', choices: buildDestinationChoices({ text, kind: 'restaurant' }), createdAt: simulatedNow().getTime() + 1000 })
+    void scrollToLatest()
   }
-  else if (/展区|长颈鹿|熊猫|考拉|大象|老虎|黑猩猩/.test(text)) {
-    destinationRequest.value = { text, kind: 'animal' }
-    restroomRequest.value = false
+  else if (/展区|长颈鹿|熊猫|考拉|大象|老虎|虎园|虎区|黑猩猩/.test(text)) {
+    localMessages.value.push({ id: `${Date.now()}-animal-results`, type: 'destination-results', kind: 'animal', choices: buildDestinationChoices({ text, kind: 'animal' }), createdAt: simulatedNow().getTime() + 1000 })
+    void scrollToLatest()
   }
   else {
     try {
@@ -272,21 +624,49 @@ async function sendChat() {
           question: text,
         },
       })
-      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: response.reply })
+      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: response.reply, createdAt: simulatedNow().getTime() })
       if (response.navigationTarget) {
         activeDestination.value = response.navigationTarget
         activeNavigation.value = navigationRouteFromPosition(demoPosition, response.navigationTarget)
       }
     }
     catch {
-      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。' })
+      localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。', createdAt: simulatedNow().getTime() })
     }
   }
 }
 
 function sendQuickPrompt(text: string) {
-  composerText.value = text
-  void sendChat()
+  void sendChat(text)
+}
+
+async function submitLostChildReport() {
+  if (!canSubmitLostChild.value) return
+  const report = {
+    name: lostChildForm.name.trim(),
+    appearance: lostChildForm.appearance.trim(),
+    location: lostChildForm.location.trim(),
+    guardianPhone: lostChildForm.guardianPhone.trim(),
+  }
+  const createdAt = simulatedNow().getTime()
+  lostChildSubmitting.value = true
+  try {
+    await $fetch('/api/admin/lost-child', { method: 'POST', body: report })
+    localMessages.value.push(
+      { id: `${Date.now()}-lost-child-user`, type: 'message', role: 'user', text: `儿童走失播报：${report.name}；样貌特征：${report.appearance}；走失地点：${report.location}`, createdAt },
+      { id: `${Date.now()}-lost-child-agent`, type: 'message', role: 'assistant', text: '走失信息已上传至园区运营后台，工作人员可立即查看并更新协查状态。请留在原地或前往最近的工作人员服务点，并保持电话畅通。', createdAt },
+    )
+    lostChildOpen.value = false
+    lostChildForm.name = ''
+    lostChildForm.appearance = ''
+    lostChildForm.location = ''
+    lostChildForm.guardianPhone = ''
+  }
+  catch {
+    localMessages.value.push({ id: `${Date.now()}-lost-child-error`, type: 'message', role: 'assistant', text: '信息暂时未能上传，请立即联系附近工作人员或拨打 110。', createdAt })
+  }
+  finally { lostChildSubmitting.value = false }
+  void scrollToLatest()
 }
 
 function navigateToRestroom(choice: { service: ParkService, route: ParkNavigationRoute }) {
@@ -313,6 +693,15 @@ function navigateToShowReminder(reminder: Extract<LocalTimelineItem, { type: 'sh
   mapOpen.value = true
 }
 
+function navigateToMerchPickup(choice: { service: ParkService, route: ParkNavigationRoute }) {
+  activeDestination.value = choice.service
+  activeRestroom.value = null
+  activeNavigation.value = choice.route
+  selectedZone.value = null
+  merchBagOpen.value = false
+  mapOpen.value = true
+}
+
 function startZoneNavigation() {
   const zone = selectedZone.value
   if (!zone) return
@@ -336,7 +725,44 @@ function reactToChoice() {
 function capturePhoto() { photoInput.value?.click() }
 function attachPhoto(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
-  if (file) composerText.value = `已选择照片：${file.name}`
+  if (!file) return
+  photoSourceFile.value = file
+  photoComposerOpen.value = true
+  toolsOpen.value = false
+  ;(event.target as HTMLInputElement).value = ''
+}
+function closePhotoComposer() {
+  photoComposerOpen.value = false
+  photoSourceFile.value = null
+}
+function sendCompositePhoto(image: string, usedAi: boolean) {
+  const companion = currentCompanion.value
+  const positiveReplies: Record<Companion['id'], string> = {
+    panda: '拍得真棒！我是熊猫伙伴团团，也成功和你同框啦。这张合照很有旅行故事感，我要帮你把这份开心好好收藏起来。',
+    tiger: '太有探险队的气势了！我是老虎伙伴凯凯，很高兴加入你的合照。今天的虎园观察之旅又多了一份特别纪念。',
+    koala: '这张合照好温暖呀！我是考拉伙伴悠米，已经把它收进慢游回忆里，看到照片就会想起今天的相遇。',
+    elephant: '合照完成得很棒！我是大象伙伴潺潺，也来和你同框了。这会是一张很有纪念意义的园区照片。',
+    giraffe: '视角和氛围都很棒！我是长颈鹿伙伴长乐，很开心能加入你的照片，这一刻值得收藏。',
+    gorilla: '拍得真不错！我是黑猩猩伙伴阿悟，已经加入合照，这张照片很有森林探险伙伴的感觉。',
+  }
+  localMessages.value.push({
+    id: `${Date.now()}-agent-photo`,
+    type: 'photo',
+    dataUrl: image,
+    agentName: companion.name,
+    usedAi,
+    createdAt: simulatedNow().getTime(),
+  })
+  localMessages.value.push({
+    id: `${Date.now()}-agent-photo-reply`,
+    type: 'message',
+    role: 'assistant',
+    text: positiveReplies[companion.id],
+    agentName: companion.name,
+    createdAt: simulatedNow().getTime() + 1000,
+  })
+  closePhotoComposer()
+  void scrollToLatest()
 }
 const zoneInfo = computed(() => {
   const zone = selectedZone.value
@@ -346,7 +772,7 @@ const zoneInfo = computed(() => {
   }
   return { ...zone, description: copy[zone.id] ?? zone.description }
 })
-const zoneHeat = computed(() => selectedZone.value ? 48 + ((selectedZone.value.id.length * 11 + heatTick.value * 7) % 43) : 0)
+const zoneHeat = computed(() => selectedZone.value ? operationsState.value?.zones[selectedZone.value.id]?.heat ?? 50 : 0)
 const poiInfo = computed(() => {
   const service = selectedService.value
   if (service) {
@@ -411,8 +837,8 @@ onMounted(() => void scrollToLatest('auto'))
 watch(arrivalMessage, (message) => {
   if (!message || localMessages.value.some(item => item.id === 'park-arrival-map')) return
   localMessages.value.push(
-    { id: 'park-arrival-map', type: 'map' },
-    { id: 'park-arrival-welcome', type: 'message', role: 'assistant', text: message.text },
+    { id: 'park-arrival-map', type: 'map', createdAt: Date.now() },
+    { id: 'park-arrival-welcome', type: 'message', role: 'assistant', text: message.text, createdAt: Date.now() },
   )
 }, { immediate: true })
 
@@ -433,7 +859,35 @@ watch([
         <span class="mini-avatar"><img :src="currentCompanion.selectionImage" :alt="currentCompanion.name"></span>
         <span><strong>{{ currentCompanion.name }}</strong><small class="animal-status">● {{ currentCompanion === companion ? animalState : `${currentCompanion.species} 已解锁` }}</small></span>
       </div>
-      <button class="reset-button" type="button" @click="emit('reset')">重选</button>
+      <div class="header-actions">
+        <button class="test-button" type="button" @click="testPanelOpen = !testPanelOpen">测试</button>
+        <button class="reset-button" type="button" @click="emit('reset')">重选</button>
+      </div>
+      <div v-if="testPanelOpen" class="test-panel">
+        <label>
+          <span>模拟时间</span>
+          <select v-model="testTime" @change="applyTestTime">
+            <option value="real">跟随真实时间</option>
+            <option value="10:00">10:00 · 10:30 演出提醒</option>
+            <option value="12:30">12:30 · 13:00 演出提醒</option>
+            <option value="15:00">15:00 · 15:30 演出提醒</option>
+          </select>
+        </label>
+        <label>
+          <span>模拟地点</span>
+          <select v-model="testZoneId" @change="applyTestZone">
+            <option value="" disabled>选择当前所在展区</option>
+            <optgroup label="动物展区">
+              <option v-for="zone in animals" :key="zone.id" :value="zone.id">{{ zone.name }}</option>
+            </optgroup>
+            <optgroup label="餐厅与小吃街">
+              <option v-for="service in diningTestServices" :key="service.id" :value="service.id">{{ service.name }}</option>
+            </optgroup>
+          </select>
+        </label>
+        <button class="leave-test-button" type="button" @click="simulateLeavingPark"><span>模拟状态</span><strong>用户准备离开园区</strong></button>
+        <small>应用上线时以实际手机端时间和实时定位为准。</small>
+      </div>
     </header>
 
     <div class="progress-row">
@@ -457,12 +911,39 @@ watch([
         </div>
       </div>
 
-      <template v-for="message in localMessages" :key="message.id">
+      <template v-for="(message, messageIndex) in localMessages" :key="message.id">
+        <time v-if="shouldShowTimelineTime(messageIndex)" class="timeline-time">{{ formatTimelineTime(message) }}</time>
         <button v-if="message.type === 'map' && plan" class="location-card" type="button" @click="mapOpen = true">
           <span class="location-pin">⌖</span>
           <span><small>{{ companion.name }}分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
           <b>查看地图 ›</b>
         </button>
+        <div v-else-if="message.type === 'photo'" class="message-row user photo-message">
+          <div class="message-bubble"><img :src="message.dataUrl" :alt="`与${message.agentName}的合照`"><small>{{ message.usedAi ? '人物轮廓已智能合成' : '团团合照' }}</small></div>
+        </div>
+        <div v-else-if="message.type === 'restroom-results'" class="message-row assistant restroom-answer">
+          <span class="message-avatar">{{ currentCompanion.name.slice(0, 1) }}</span>
+          <div class="message-bubble">
+            <p>收到，我按你当前位置为你排好了附近洗手间。排队指数会随园区客流变化。</p>
+            <button v-for="choice in message.choices" :key="`${message.id}-${choice.service.id}`" class="restroom-choice" type="button" @click="navigateToRestroom(choice)">
+              <span class="restroom-icon">⌾</span>
+              <span><strong>{{ restroomLabels[choice.service.id] ?? choice.service.name }}</strong><small>距你 {{ choice.route.distanceMeters }} 米 · 约 {{ choice.route.walkingMinutes }} 分钟</small></span>
+              <b :class="{ busy: choice.queue >= 40 }">排队 {{ choice.queue }}%</b>
+            </button>
+          </div>
+        </div>
+        <div v-else-if="message.type === 'destination-results'" class="message-row assistant restroom-answer">
+          <span class="message-avatar">{{ currentCompanion.name.slice(0, 1) }}</span>
+          <div class="message-bubble">
+            <p>{{ message.kind === 'restaurant' ? '为你找到了附近餐厅，按步行距离排序。' : message.kind === 'train' ? '为你找到了附近小火车站，选一个站点后就开始导航。' : '为你找到了匹配展区，点一下就开始导航。' }}</p>
+            <button v-for="choice in message.choices" :key="`${message.id}-${choice.target.id}`" class="restroom-choice destination-choice" type="button" @click="navigateToDestination(choice)">
+              <span class="restroom-icon">{{ message.kind === 'restaurant' ? '⌑' : message.kind === 'train' ? '▣' : '◉' }}</span>
+              <span><strong>{{ choice.detail }}</strong><small>距你 {{ choice.route.distanceMeters }} 米 · 约 {{ choice.route.walkingMinutes }} 分钟</small></span>
+              <b>去这里</b>
+            </button>
+            <small v-if="!message.choices.length" class="no-destination">暂未匹配到目的地，试试输入完整名称。</small>
+          </div>
+        </div>
         <div v-else-if="message.type === 'show-reminder'" class="message-row assistant show-reminder">
           <span class="message-avatar">演</span>
           <div class="message-bubble">
@@ -472,8 +953,47 @@ watch([
             </button>
           </div>
         </div>
+        <div v-else-if="message.type === 'test-location'" class="message-row assistant test-location-message">
+          <span class="message-avatar">{{ message.location.kind === 'animal' ? message.location.companion.name.slice(0, 1) : '食' }}</span>
+          <div class="message-bubble test-location-card">
+            <small>模拟地点已更新</small>
+            <strong>{{ message.location.kind === 'animal' ? message.location.zone.name : message.location.service.name }}</strong>
+            <template v-if="message.location.kind === 'animal'">
+              <p>你已到达{{ message.location.zone.name }}，发现了专属动物 Agent。确认后才会切换当前伙伴。</p>
+              <p>{{ message.location.zone.description }}</p>
+              <em>当前状态：{{ operationsState?.zones[message.location.zone.id]?.status ?? '营业中' }} · 火爆指数 {{ operationsState?.zones[message.location.zone.id]?.heat ?? 50 }}%</em>
+              <button v-if="!message.location.unlocked" class="unlock-agent-button test-unlock-button" type="button" @click="unlockTestLocation(message)">
+                <img :src="message.location.companion.selectionImage" :alt="message.location.companion.name">
+                <span><small>新 Agent 待解锁</small><strong>解锁 {{ message.location.companion.name }}</strong><em>{{ message.location.companion.species }}</em></span>
+                <b>启用</b>
+              </button>
+              <div v-else class="test-science-card">
+                <small>动物科普问答</small>
+                <strong>{{ zoneExperienceConfigs[message.location.zone.id].task.title }}</strong>
+                <p>{{ zoneExperienceConfigs[message.location.zone.id].task.prompt }}</p>
+                <button v-for="choice in zoneExperienceConfigs[message.location.zone.id].task.choices" :key="choice" type="button" :class="{ correct: message.location.scienceAnswer === choice && choice === zoneExperienceConfigs[message.location.zone.id].task.correctChoice, incorrect: message.location.scienceAnswer === choice && choice !== zoneExperienceConfigs[message.location.zone.id].task.correctChoice }" @click="answerTestLocationScience(message, choice)">{{ choice }}</button>
+                <em v-if="message.location.scienceAnswer">{{ message.location.scienceAnswer === zoneExperienceConfigs[message.location.zone.id].task.correctChoice ? zoneExperienceConfigs[message.location.zone.id].task.successMessage : `再观察一下：${zoneExperienceConfigs[message.location.zone.id].task.correctChoice}` }}</em>
+                <div class="test-merch-card">
+                  <small>解锁专属购买机会</small>
+                  <div><img :src="message.location.companion.selectionImage" :alt="merchCatalog[message.location.companion.id].name"><span><em>{{ merchCatalog[message.location.companion.id].badge }}</em><strong>{{ merchCatalog[message.location.companion.id].name }}</strong><p>{{ merchCatalog[message.location.companion.id].description }}</p></span><b>{{ (operationsState?.merchStock[message.location.companion.id] ?? 1) <= 0 ? '售罄' : merchCatalog[message.location.companion.id].price }}</b></div>
+                  <button type="button" :disabled="(operationsState?.merchStock[message.location.companion.id] ?? 1) <= 0 || merchBagIds.includes(message.location.companion.id)" @click="addTestMerchToBag(message.location.companion)">{{ (operationsState?.merchStock[message.location.companion.id] ?? 1) <= 0 ? '已售罄' : merchBagIds.includes(message.location.companion.id) ? '已加入纪念袋' : '加入纪念袋' }}</button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <p>你已到达{{ message.location.service.name }}，下面是该地点的菜单与用餐提示。</p>
+              <p class="child-meal"><b>儿童餐：</b>{{ restaurantMenuData[message.location.service.id]?.childMeal ?? '可向现场工作人员咨询儿童餐。' }}</p>
+              <p class="allergy-notice"><b>过敏原提醒：</b>{{ restaurantMenuData[message.location.service.id]?.allergyNotice ?? '下单前请向工作人员说明过敏情况。' }}</p>
+              <div class="test-dish-list"><span v-for="dish in restaurantMenuData[message.location.service.id]?.dishes ?? []" :key="dish.name"><b>{{ dish.name }}</b><em>{{ dish.price }} · {{ dish.allergens }}</em></span></div>
+            </template>
+          </div>
+        </div>
+        <div v-else-if="message.type === 'posttrip'" class="message-row assistant posttrip-message">
+          <span class="message-avatar">忆</span>
+          <div class="message-bubble posttrip-entry-card"><small>本次奇遇即将完成</small><strong>要离园了吗？团团已经把今天收藏好了</strong><p>可以先查看解锁的游后图鉴，也可以进入游后回顾重温路线、照片和伙伴总结。</p><div><NuxtLink to="/posttrip/tickets"><span>图</span><em>游后图鉴</em><b>查看收藏 ›</b></NuxtLink><NuxtLink to="/posttrip"><span>忆</span><em>游后回顾</em><b>重温旅程 ›</b></NuxtLink></div></div>
+        </div>
         <div v-else-if="message.type === 'message'" class="message-row" :class="message.role">
-          <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
+          <span v-if="message.role === 'assistant'" class="message-avatar">{{ (message.agentName ?? currentCompanion.name).slice(0, 1) }}</span>
           <div class="message-bubble"><p>{{ message.text }}</p></div>
         </div>
       </template>
@@ -504,6 +1024,39 @@ watch([
             @click="answerScienceQuestion(choice)"
           >{{ choice }}</button>
           <em v-if="scienceAnswer">{{ scienceAnswer === learningConfig.task.correctChoice ? learningConfig.task.successMessage : `再观察一下：${learningConfig.task.correctChoice}` }}</em>
+        </div>
+      </div>
+
+      <div v-if="merchOffer && currentMerch" class="message-row assistant merch-answer">
+        <span class="message-avatar">{{ merchOffer.name.slice(0, 1) }}</span>
+        <div class="merch-card">
+          <small>解锁专属购买机会</small>
+          <div class="merch-product">
+            <div class="merch-image"><img :src="merchOffer.selectionImage" :alt="currentMerch.name"></div>
+            <div><em>{{ currentMerch.badge }}</em><strong>{{ currentMerch.name }}</strong><p>{{ currentMerch.description }}</p></div>
+            <b>{{ merchSoldOut ? '售罄' : currentMerch.price }}</b>
+          </div>
+          <div class="merch-actions">
+            <button type="button" @click="merchOffer = null">暂时不要</button>
+              <button class="primary" type="button" :disabled="merchAdded || merchSoldOut" @click="addMerchToBag">{{ merchSoldOut ? '已售罄' : merchAdded ? '已加入纪念袋' : '加入纪念袋' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="diningOffer && diningMenu" class="message-row assistant dining-answer">
+        <span class="message-avatar">{{ currentCompanion.name.slice(0, 1) }}</span>
+        <div class="dining-card">
+          <small>餐厅菜单与用餐提示</small>
+          <strong>{{ diningOffer.name }}</strong>
+          <p class="child-meal"><b>儿童餐：</b>{{ diningMenu.childMeal }}</p>
+          <p class="allergy-notice"><b>过敏原提醒：</b>{{ diningMenu.allergyNotice }}</p>
+          <div class="dish-list">
+            <article v-for="dish in diningMenu.dishes" :key="dish.name">
+              <div class="dish-image-placeholder"><span>菜品图片</span></div>
+              <div><strong>{{ dish.name }}</strong><small>{{ dish.allergens }}</small></div>
+              <b>{{ dish.price }}</b>
+            </article>
+          </div>
         </div>
       </div>
 
@@ -538,6 +1091,78 @@ watch([
           </div>
         </div>
       </template>
+      <template v-for="(priorityMessage, priorityIndex) in separatedPriorityMessages" :key="`priority-${priorityMessage.id}`">
+        <time v-if="shouldShowPriorityTime(priorityIndex)" class="timeline-time">{{ formatTimelineTime(priorityMessage) }}</time>
+        <div v-if="priorityMessage.type === 'show-reminder'" class="message-row assistant show-reminder">
+          <span class="message-avatar">演</span>
+          <div class="message-bubble">
+            <p>演出提醒：{{ priorityMessage.service.name }}将在 {{ priorityMessage.startLabel }} 开始，距离开演约半小时。</p>
+            <button class="show-route-card" type="button" @click="navigateToShowReminder(priorityMessage)">
+              <span>⌖</span><strong>{{ priorityMessage.service.name }}</strong><em>距你 {{ priorityMessage.route.distanceMeters }} 米 · 步行约 {{ priorityMessage.route.walkingMinutes }} 分钟</em><b>查看路线</b>
+            </button>
+          </div>
+        </div>
+        <div v-else-if="priorityMessage.type === 'test-location'" class="message-row assistant test-location-message">
+          <span class="message-avatar">{{ priorityMessage.location.kind === 'animal' ? priorityMessage.location.companion.name.slice(0, 1) : '食' }}</span>
+          <div class="message-bubble test-location-card">
+            <small>模拟地点已更新</small>
+            <strong>{{ priorityMessage.location.kind === 'animal' ? priorityMessage.location.zone.name : priorityMessage.location.service.name }}</strong>
+            <template v-if="priorityMessage.location.kind === 'animal'">
+              <p>你已到达{{ priorityMessage.location.zone.name }}，发现了专属动物 Agent。确认后才会切换当前伙伴。</p>
+              <p>{{ priorityMessage.location.zone.description }}</p>
+              <em>当前状态：{{ operationsState?.zones[priorityMessage.location.zone.id]?.status ?? '营业中' }} · 火爆指数 {{ operationsState?.zones[priorityMessage.location.zone.id]?.heat ?? 50 }}%</em>
+              <button v-if="!priorityMessage.location.unlocked" class="unlock-agent-button test-unlock-button" type="button" @click="unlockTestLocation(priorityMessage)">
+                <img :src="priorityMessage.location.companion.selectionImage" :alt="priorityMessage.location.companion.name">
+                <span><small>新 Agent 待解锁</small><strong>解锁 {{ priorityMessage.location.companion.name }}</strong><em>{{ priorityMessage.location.companion.species }}</em></span>
+                <b>启用</b>
+              </button>
+              <div v-else class="test-science-card">
+                <small>动物科普问答</small>
+                <strong>{{ zoneExperienceConfigs[priorityMessage.location.zone.id].task.title }}</strong>
+                <p>{{ zoneExperienceConfigs[priorityMessage.location.zone.id].task.prompt }}</p>
+                <button
+                  v-for="choice in zoneExperienceConfigs[priorityMessage.location.zone.id].task.choices"
+                  :key="choice"
+                  type="button"
+                  :class="{ correct: priorityMessage.location.scienceAnswer === choice && choice === zoneExperienceConfigs[priorityMessage.location.zone.id].task.correctChoice, incorrect: priorityMessage.location.scienceAnswer === choice && choice !== zoneExperienceConfigs[priorityMessage.location.zone.id].task.correctChoice }"
+                  @click="answerTestLocationScience(priorityMessage, choice)"
+                >{{ choice }}</button>
+                <em v-if="priorityMessage.location.scienceAnswer">{{ priorityMessage.location.scienceAnswer === zoneExperienceConfigs[priorityMessage.location.zone.id].task.correctChoice ? zoneExperienceConfigs[priorityMessage.location.zone.id].task.successMessage : `再观察一下：${zoneExperienceConfigs[priorityMessage.location.zone.id].task.correctChoice}` }}</em>
+                <div class="test-merch-card">
+                  <small>解锁专属购买机会</small>
+                  <div>
+                    <img :src="priorityMessage.location.companion.selectionImage" :alt="merchCatalog[priorityMessage.location.companion.id].name">
+                    <span><em>{{ merchCatalog[priorityMessage.location.companion.id].badge }}</em><strong>{{ merchCatalog[priorityMessage.location.companion.id].name }}</strong><p>{{ merchCatalog[priorityMessage.location.companion.id].description }}</p></span>
+                    <b>{{ (operationsState?.merchStock[priorityMessage.location.companion.id] ?? 1) <= 0 ? '售罄' : merchCatalog[priorityMessage.location.companion.id].price }}</b>
+                  </div>
+                  <button
+                    type="button"
+                    :disabled="(operationsState?.merchStock[priorityMessage.location.companion.id] ?? 1) <= 0 || merchBagIds.includes(priorityMessage.location.companion.id)"
+                    @click="addTestMerchToBag(priorityMessage.location.companion)"
+                  >{{ (operationsState?.merchStock[priorityMessage.location.companion.id] ?? 1) <= 0 ? '已售罄' : merchBagIds.includes(priorityMessage.location.companion.id) ? '已加入纪念袋' : '加入纪念袋' }}</button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <p>你已到达{{ priorityMessage.location.service.name }}，下面是该地点的菜单与用餐提示。</p>
+              <p class="child-meal"><b>儿童餐：</b>{{ restaurantMenuData[priorityMessage.location.service.id]?.childMeal ?? '可向现场工作人员咨询儿童餐。' }}</p>
+              <p class="allergy-notice"><b>过敏原提醒：</b>{{ restaurantMenuData[priorityMessage.location.service.id]?.allergyNotice ?? '下单前请向工作人员说明过敏情况。' }}</p>
+              <div class="test-dish-list">
+                <span v-for="dish in restaurantMenuData[priorityMessage.location.service.id]?.dishes ?? []" :key="dish.name"><b>{{ dish.name }}</b><em>{{ dish.price }} · {{ dish.allergens }}</em></span>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div v-else class="message-row assistant posttrip-message">
+          <span class="message-avatar">忆</span>
+          <div class="message-bubble posttrip-entry-card">
+            <small>本次奇遇即将完成</small>
+            <strong>要离园了吗？团团已经把今天收藏好了</strong>
+            <p>可以先查看解锁的游后图鉴，也可以进入游后回顾重温路线、照片和伙伴总结。</p>
+            <div><NuxtLink to="/posttrip/tickets"><span>图</span><em>游后图鉴</em><b>查看收藏 ›</b></NuxtLink><NuxtLink to="/posttrip"><span>忆</span><em>游后回顾</em><b>重温旅程 ›</b></NuxtLink></div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <p v-if="errorMessage" class="chat-error">{{ errorMessage }}</p>
@@ -560,10 +1185,10 @@ watch([
     <div v-else class="wechat-dock">
       <input ref="photoInput" class="photo-input" type="file" accept="image/*" capture="environment" @change="attachPhoto">
       <div class="quick-prompts" aria-label="快捷提问">
-        <button type="button" @click="sendQuickPrompt('我想去卫生间')">我想去卫生间</button>
+        <button type="button" @click="sendQuickPrompt('我要去厕所')">我要去厕所</button>
         <button type="button" @click="sendQuickPrompt('离我最近的餐厅在哪')">离我最近的餐厅在哪</button>
         <button type="button" @click="sendQuickPrompt('我要去虎园')">我要去虎园</button>
-        <button type="button" @click="sendQuickPrompt('我到考拉园了')">我到考拉园了</button>
+        <button class="emergency-prompt" type="button" @click="lostChildOpen = true">儿童走失播报</button>
       </div>
       <div class="composer-row">
         <button :class="{ active: voiceActive }" type="button" @click="voiceActive = !voiceActive">◉</button>
@@ -573,22 +1198,65 @@ watch([
       </div>
       <small v-if="voiceActive" class="voice-hint">正在聆听，点击圆形按钮结束</small>
       <div v-if="toolsOpen" class="tool-grid">
-        <button type="button" @click="mapOpen = true; toolsOpen = false"><i>⌖</i><span>位置</span></button>
+        <button type="button" @click="mapOpen = true; toolsOpen = false"><i>⌖</i><span>地图</span></button>
         <button type="button" @click="capturePhoto"><i>◉</i><span>拍摄</span></button>
         <button type="button" @click="voiceActive = !voiceActive; toolsOpen = false"><i>♬</i><span>语音输入</span></button>
+        <button type="button" @click="merchBagOpen = true; toolsOpen = false"><i>袋</i><span>纪念袋<b v-if="merchBagIds.length">{{ merchBagIds.length }}</b></span></button>
       </div>
     </div>
 
-    <Transition name="map-drop"><div v-if="mapOpen && plan" class="map-backdrop" @click.self="mapOpen = false"><div class="map-modal" role="dialog" aria-modal="true" aria-label="园区路线地图">
+    <Transition name="map-drop">
+      <div v-if="merchBagOpen" class="bag-backdrop" @click.self="merchBagOpen = false">
+        <section class="merch-bag-sheet" role="dialog" aria-modal="true" aria-label="纪念袋">
+          <header><div><small>CHIMELONG MEMORY BAG</small><strong>我的纪念袋</strong></div><button type="button" aria-label="关闭" @click="merchBagOpen = false">×</button></header>
+          <div v-if="merchBagItems.length" class="bag-items">
+            <article v-for="item in merchBagItems" :key="item.companion.id">
+              <img :src="item.companion.selectionImage" :alt="item.product.name">
+              <div><small>{{ item.product.badge }}</small><strong>{{ item.product.name }}</strong><span>{{ item.companion.name }} Agent 专属</span></div>
+              <b>{{ item.product.price }}</b>
+            </article>
+          </div>
+          <div v-else class="empty-bag"><span>袋</span><strong>纪念袋还是空的</strong><p>到达动物展区并解锁 Agent，即可获得限定周边购买机会。</p></div>
+          <div v-if="merchBagItems.length" class="pickup-options">
+            <small>线上下单后选择领取点</small>
+            <button v-for="choice in merchPickupRoutes" :key="choice.service.id" type="button" @click="navigateToMerchPickup(choice)">
+              <span>袋</span><span><strong>{{ choice.service.name }}</strong><em>{{ choice.service.detail }}</em></span><b>{{ choice.route.distanceMeters }} 米 · 查看路线</b>
+            </button>
+          </div>
+          <footer v-if="merchBagItems.length"><span>共 {{ merchBagItems.length }} 件</span><strong>合计 ¥{{ merchBagTotal }}</strong><button type="button" :disabled="merchOrdering" @click="submitMerchOrder">{{ merchOrdering ? '正在下单…' : '演示下单' }}</button></footer>
+        </section>
+      </div>
+    </Transition>
+
+    <Transition name="map-drop">
+      <div v-if="lostChildOpen" class="emergency-backdrop" @click.self="lostChildOpen = false">
+        <section class="lost-child-sheet" role="dialog" aria-modal="true" aria-label="儿童走失播报">
+          <header><div><small>紧急协助</small><strong>儿童走失播报</strong></div><button type="button" aria-label="关闭" @click="lostChildOpen = false">×</button></header>
+          <p>请立即联系附近工作人员。情况紧急时，可直接拨打报警电话。</p>
+          <a class="emergency-call" href="tel:110"><span>☎</span><strong>拨打 110</strong><small>紧急报警电话</small></a>
+          <form @submit.prevent="submitLostChildReport">
+            <label><span>孩子名字</span><input v-model="lostChildForm.name" required placeholder="请输入孩子姓名或小名"></label>
+            <label><span>样貌特征</span><textarea v-model="lostChildForm.appearance" required placeholder="衣着颜色、身高、发型等明显特征"></textarea></label>
+              <label><span>走丢地点</span><input v-model="lostChildForm.location" required placeholder="例如：考拉园出口附近"></label>
+              <label><span>家长联系电话</span><input v-model="lostChildForm.guardianPhone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="请输入可随时接听的电话号码"></label>
+              <small>提交后将实时上传至园区运营后台，由工作人员接收并更新协查状态。</small>
+              <button class="submit-lost-child" type="submit" :disabled="!canSubmitLostChild">{{ lostChildSubmitting ? '正在上传…' : '提交走失信息' }}</button>
+          </form>
+        </section>
+      </div>
+    </Transition>
+
+      <Transition name="map-drop"><div v-if="mapOpen && plan" class="map-backdrop" @click.self="mapOpen = false"><div class="map-modal" role="dialog" aria-modal="true" aria-label="园区路线地图">
       <header><div><small>园区实时地图</small><strong>{{ plan.title }}</strong><label class="map-search"><span>⌕</span><input placeholder="搜索动物、展区或服务"></label></div><button type="button" @click="mapOpen = false">×</button></header>
-      <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan.actualAnimalOrder" :current-position="demoPosition" :services="parkServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
+       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan.actualAnimalOrder" :current-position="demoPosition" :services="mapServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
       <footer v-if="activeDestination && !activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ activeDestination.name }}</strong><span>已为你规划园区步行路线。</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ restroomLabels[activeRestroom.id] ?? activeRestroom.name }}</strong><span>{{ activeRestroom.detail }}</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="poiInfo" class="poi-summary"><small>园区 POI 信息</small><strong>{{ poiInfo.name }}</strong><span>{{ poiInfo.detail }}</span><b>{{ poiInfo.hours }} · {{ poiInfo.metric }}</b></footer>
       <footer v-if="zoneInfo" class="zone-summary"><small>展区实时信息</small><strong>{{ zoneInfo.name }}</strong><span>{{ zoneInfo.description }}</span><b>当前状态：{{ animalState }} · 火爆指数 {{ zoneHeat }}%</b><button type="button" @click="startZoneNavigation">现在出发</button></footer>
       <footer v-else><strong>路线已标记</strong><span>点击地图中的动物展区，查看介绍、状态与实时火爆指数。</span></footer>
-    </div></div></Transition>
-  </section>
+      </div></div></Transition>
+      <AgentPhotoComposer v-if="photoComposerOpen && photoSourceFile" :source-file="photoSourceFile" :sticker-sources="photoStickerSources" :agent-name="currentCompanion.name" @complete="sendCompositePhoto" @close="closePhotoComposer" @retry="capturePhoto" />
+    </section>
 </template>
 
 <style scoped>
@@ -607,7 +1275,7 @@ watch([
   position: relative;
   z-index: 7;
   display: grid;
-  grid-template-columns: 38px 1fr 42px;
+  grid-template-columns: 38px 1fr auto;
   align-items: center;
   min-height: calc(68px + env(safe-area-inset-top));
   padding: max(12px, env(safe-area-inset-top)) 16px 10px;
@@ -618,7 +1286,8 @@ watch([
 }
 
 .back-button,
-.reset-button {
+.reset-button,
+.test-button {
   height: 40px;
   border: 1px solid var(--line);
   border-radius: 11px;
@@ -635,6 +1304,11 @@ watch([
   font-size: 11px;
   font-weight: 800;
 }
+
+.header-actions { display: flex; gap: 5px; }.header-actions button { width: 40px; }.test-button { border-color: #b9d5bd; background: #eff7ef; color: #326b43; font-size: 11px; font-weight: 800; }
+.test-panel { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; width: 100%; margin-top: 2px; padding: 10px; gap: 8px; border: 1px solid #d2ddd0; border-radius: 13px; background: #fafbf7; }
+.test-panel label { display: grid; min-width: 0; gap: 4px; }.test-panel label > span { color: var(--muted); font-size: 9px; font-weight: 800; }.test-panel select { width: 100%; height: 34px; padding: 0 8px; border: 1px solid #cad8c8; border-radius: 9px; outline: 0; background: #fff; color: var(--forest); font-size: 10px; }.test-panel > small { grid-column: 1 / -1; color: #6c7b73; font-size: 9px; }
+.leave-test-button { grid-column: 1 / -1; display: flex; min-height: 42px; padding: 7px 10px; align-items: center; justify-content: space-between; border: 1px solid #d9bd82; border-radius: 10px; background: #fff8e8; color: var(--forest); text-align: left; }.leave-test-button span { color: #a2702b; font-size: 9px; }.leave-test-button strong { font-size: 11px; }
 
 .header-agent {
   display: flex;
@@ -721,6 +1395,8 @@ watch([
   scroll-behavior: smooth;
 }
 
+.timeline-time { align-self: center; margin: 4px 0 1px; padding: 3px 8px; border-radius: 999px; background: rgba(108, 120, 113, .1); color: #7a847f; font-size: 9px; line-height: 1.2; }
+
 .message-row {
   display: flex;
   align-items: flex-end;
@@ -773,6 +1449,8 @@ watch([
   font-size: 9px;
   font-weight: 800;
 }
+.photo-message .message-bubble { width: min(82%, 286px); padding: 4px; overflow: hidden; }.photo-message .message-bubble img { display: block; width: 100%; max-height: 320px; border-radius: 12px; object-fit: cover; }.photo-message .message-bubble small { padding: 1px 5px 3px; color: rgba(255,255,255,.78); }
+.posttrip-message { align-items: flex-start; }.posttrip-entry-card { width: min(100%, 350px); max-width: 350px; padding: 12px; border-color: #dbc590; background: linear-gradient(145deg, #fffdf6, #f7eed7); }.posttrip-entry-card > small { margin: 0; color: #9b6c27; font-size: 9px; }.posttrip-entry-card > strong { display: block; margin-top: 4px; color: var(--forest); font-size: 14px; line-height: 1.45; }.posttrip-entry-card > p { margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.5; }.posttrip-entry-card > div { display: grid; margin-top: 10px; gap: 7px; }.posttrip-entry-card a { display: grid; grid-template-columns: 34px 1fr auto; padding: 8px; align-items: center; gap: 7px; border: 1px solid #d8dfca; border-radius: 11px; background: rgba(255,255,255,.78); color: var(--forest); text-decoration: none; }.posttrip-entry-card a > span { grid-row: 1 / span 2; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: var(--forest); color: #fff; font-size: 12px; font-weight: 900; }.posttrip-entry-card a > em { font-size: 11px; font-style: normal; font-weight: 800; }.posttrip-entry-card a > b { grid-column: 3; grid-row: 1 / span 2; color: #8c672d; font-size: 9px; white-space: nowrap; }
 
 .typing-bubble {
   display: flex;
@@ -821,8 +1499,8 @@ watch([
 .map-search { display: flex; align-items: center; height: 38px; margin-top: 10px; padding: 0 11px; gap: 6px; border-radius: 12px; background: #e9e9e5; color: #6b716d; }.map-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }.map-canvas { min-height: 0; }.map-modal footer { display: grid; min-height: 116px; padding: 34px 16px max(15px, env(safe-area-inset-bottom)); gap: 2px; border-top: 1px solid var(--line); background: #fff; }.map-modal footer strong { color: var(--forest); font-size: 13px; }.map-modal footer span { color: var(--muted); font-size: 10px; }
 .zone-status-card { display: none; }
 .zone-status-card { position: absolute; right: 12px; bottom: 70px; left: 12px; display: grid; padding: 14px; gap: 6px; border-radius: 16px; background: rgba(255,255,255,.97); box-shadow: 0 12px 28px rgba(7,56,45,.2); }.zone-status-card button { position: absolute; top: 8px; right: 9px; border: 0; background: transparent; color: var(--muted); font-size: 20px; }.zone-status-card small { color: var(--accent-dark); font-size: 10px; font-weight: 800; }.zone-status-card strong { color: var(--forest); font-size: 17px; }.zone-status-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }.zone-status-card div { display: flex; flex-wrap: wrap; gap: 5px; }.zone-status-card span { padding: 5px 7px; border-radius: 8px; background: #edf5ed; color: var(--forest); font-size: 9px; }
-.wechat-dock { padding: 9px 12px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #f5f4f0; }
-.animal-status { color: #42805a !important; font-weight: 800; }.composer-row { display: grid; grid-template-columns: 35px 1fr 34px 34px; align-items: center; gap: 8px; }.composer-row input { min-width: 0; height: 37px; padding: 0 11px; border: 0; border-radius: 7px; background: #fff; color: var(--ink); font-size: 13px; }.composer-row button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; background: transparent; color: #31443d; font-size: 23px; line-height: 1; }.composer-row button.active { color: #ba6332; }.plus-button { font-size: 26px !important; }.photo-input { display: none; }.voice-hint { display: block; margin: 5px 44px 0; color: #ba6332; font-size: 10px; }.tool-grid { display: grid; grid-template-columns: repeat(3, 72px); padding: 15px 6px 5px; gap: 14px; }.tool-grid button { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: var(--ink); font-size: 11px; }.tool-grid i { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 12px; background: #e3e5df; color: var(--forest); font-size: 25px; font-style: normal; }
+.wechat-dock { position: relative; z-index: 8; padding: 9px 12px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #f5f4f0; pointer-events: auto; }
+.animal-status { color: #42805a !important; font-weight: 800; }.composer-row { display: grid; grid-template-columns: 35px 1fr 34px 34px; align-items: center; gap: 8px; }.composer-row input { min-width: 0; height: 37px; padding: 0 11px; border: 0; border-radius: 7px; background: #fff; color: var(--ink); font-size: 13px; }.composer-row button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; background: transparent; color: #31443d; font-size: 23px; line-height: 1; }.composer-row button.active { color: #ba6332; }.plus-button { font-size: 26px !important; }.photo-input { display: none; }.voice-hint { display: block; margin: 5px 44px 0; color: #ba6332; font-size: 10px; }.tool-grid { display: grid; grid-template-columns: repeat(4, minmax(58px, 72px)); justify-content: space-between; padding: 15px 6px 5px; gap: 7px; }.tool-grid button { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: var(--ink); font-size: 11px; }.tool-grid i { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 12px; background: #e3e5df; color: var(--forest); font-size: 25px; font-style: normal; }.tool-grid span { position: relative; }.tool-grid span b { position: absolute; top: -56px; right: -13px; display: grid; min-width: 17px; height: 17px; padding: 0 4px; place-items: center; border-radius: 999px; background: #bd4c2e; color: #fff; font-size: 9px; }
 
 .zone-status-card { display: none; }
 .restroom-answer .message-bubble { width: min(100%, 330px); }
@@ -831,13 +1509,21 @@ watch([
 .unlock-agent-button img { width: 42px; height: 42px; border-radius: 12px; object-fit: cover; background: #fff; }
 .unlock-agent-button span { display: grid; gap: 2px; }.unlock-agent-button small { margin: 0; color: #4e8561; font-size: 9px; }.unlock-agent-button strong { color: var(--forest); font-size: 13px; }.unlock-agent-button em { color: var(--muted); font-size: 9px; font-style: normal; }.unlock-agent-button b { padding: 6px 8px; border-radius: 999px; background: var(--forest); color: #fff; font-size: 10px; }
 .show-reminder .message-bubble { width: min(100%, 330px); }.show-route-card { display: grid; grid-template-columns: 30px 1fr auto; width: 100%; margin-top: 8px; padding: 9px; align-items: center; gap: 7px; border: 1px solid #c7d8c7; border-radius: 12px; background: #f3faf3; color: var(--forest); text-align: left; }.show-route-card > span { grid-row: 1 / span 2; display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: var(--forest); color: #fff; }.show-route-card strong { font-size: 12px; }.show-route-card em { color: var(--muted); font-size: 10px; font-style: normal; }.show-route-card b { grid-column: 3; grid-row: 1 / span 2; padding: 5px 7px; border-radius: 8px; background: #e0efdf; color: #39724a; font-size: 9px; white-space: nowrap; }
+.test-location-card { display: grid; width: min(100%, 342px); gap: 6px; border-color: #c8dcc9; background: #f7fbf4; }.test-location-card > small { color: #8a682e; font-size: 9px; font-weight: 800; }.test-location-card > strong { color: var(--forest); font-size: 15px; }.test-location-card > p { margin: 0; font-size: 11px; line-height: 1.55; }.test-location-card > em { width: fit-content; padding: 5px 8px; border-radius: 999px; background: #e2efe1; color: #356244; font-size: 10px; font-style: normal; font-weight: 700; }.test-location-card .child-meal,.test-location-card .allergy-notice { padding: 7px 8px; border-radius: 9px; }.test-dish-list { display: grid; gap: 6px; }.test-dish-list > span { display: grid; grid-template-columns: 1fr auto; padding: 7px 8px; gap: 6px; border-radius: 9px; background: #fff; }.test-dish-list b { color: var(--ink); font-size: 10px; }.test-dish-list em { color: #a05d35; font-size: 9px; font-style: normal; }
+.test-unlock-button { margin-top: 4px; }.test-science-card { display: grid; margin-top: 4px; padding-top: 9px; gap: 6px; border-top: 1px solid #d4e2d3; }.test-science-card > small { color: var(--accent-dark); font-size: 9px; font-weight: 800; }.test-science-card > strong { color: var(--forest); font-size: 13px; }.test-science-card > p { margin: 0 0 2px; font-size: 11px; line-height: 1.5; }.test-science-card > button { width: 100%; padding: 8px; border: 1px solid #d5e3d4; border-radius: 9px; background: #fff; color: var(--ink); font-size: 10px; text-align: left; }.test-science-card > button.correct { border-color: #75ac80; background: #e4f2e4; color: #235c36; }.test-science-card > button.incorrect { border-color: #e3b087; background: #fff1e6; color: #9b5427; }.test-science-card > em { color: #326b43; font-size: 10px; font-style: normal; line-height: 1.5; }
+.test-merch-card { display: grid; margin-top: 5px; padding: 10px; gap: 8px; border: 1px solid #e1c997; border-radius: 13px; background: linear-gradient(145deg, #fffaf0, #f8f0dc); }.test-merch-card > small { color: #a56720; font-size: 9px; font-weight: 900; }.test-merch-card > div { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 8px; }.test-merch-card img { width: 52px; height: 52px; border-radius: 11px; background: #fff; object-fit: cover; }.test-merch-card span { display: grid; gap: 2px; }.test-merch-card span > em { width: fit-content; padding: 2px 5px; border-radius: 5px; background: #f1dfb7; color: #8d5c1e; font-size: 8px; font-style: normal; }.test-merch-card span > strong { color: var(--forest); font-size: 10px; }.test-merch-card span > p { margin: 0; color: var(--muted); font-size: 8px; line-height: 1.4; }.test-merch-card div > b { color: #b45225; font-size: 11px; white-space: nowrap; }.test-merch-card > button { height: 34px; border: 0; border-radius: 10px; background: var(--forest); color: #fff; font-size: 10px; font-weight: 800; }.test-merch-card > button:disabled { opacity: .58; }
 .science-answer { align-items: flex-start; }.science-card { width: min(100%, 330px); padding: 12px; border: 1px solid #cddfce; border-radius: 14px; background: #f8fbf6; }.science-card > small { display: block; color: var(--accent-dark); font-size: 10px; font-weight: 800; }.science-card > strong { display: block; margin-top: 3px; color: var(--forest); font-size: 13px; }.science-card p { margin: 7px 0; color: var(--ink); font-size: 12px; line-height: 1.5; }.science-card button { display: block; width: 100%; margin-top: 6px; padding: 8px; border: 1px solid #d5e3d4; border-radius: 9px; background: #fff; color: var(--ink); font-size: 11px; text-align: left; }.science-card button.correct { border-color: #75ac80; background: #e4f2e4; color: #235c36; }.science-card button.incorrect { border-color: #e3b087; background: #fff1e6; color: #9b5427; }.science-card em { display: block; margin-top: 8px; color: #326b43; font-size: 11px; font-style: normal; line-height: 1.5; }
+.merch-answer { align-items: flex-start; }.merch-card { width: min(100%, 342px); padding: 12px; border: 1px solid #e1c997; border-radius: 15px; background: linear-gradient(145deg, #fffaf0, #f8f0dc); }.merch-card > small { color: #a56720; font-size: 10px; font-weight: 900; }.merch-product { display: grid; grid-template-columns: 66px 1fr auto; margin-top: 8px; align-items: center; gap: 9px; }.merch-image { width: 66px; height: 66px; overflow: hidden; border-radius: 14px; background: #fff; }.merch-image img { width: 100%; height: 100%; object-fit: cover; }.merch-product > div:nth-child(2) { display: grid; gap: 3px; }.merch-product em { width: fit-content; padding: 2px 5px; border-radius: 5px; background: #f1dfb7; color: #8d5c1e; font-size: 8px; font-style: normal; }.merch-product strong { color: var(--forest); font-size: 12px; }.merch-product p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.4; }.merch-product > b { color: #b45225; font-size: 13px; white-space: nowrap; }.merch-actions { display: grid; grid-template-columns: 1fr 1.5fr; margin-top: 10px; gap: 7px; }.merch-actions button { height: 34px; border: 1px solid #d8c8a6; border-radius: 10px; background: #fff; color: #77654b; font-size: 10px; font-weight: 800; }.merch-actions button.primary { border-color: var(--forest); background: var(--forest); color: #fff; }.merch-actions button:disabled { opacity: .58; }
+.dining-answer { align-items: flex-start; }.dining-card { width: min(100%, 342px); padding: 12px; border: 1px solid #e0d4bd; border-radius: 15px; background: #fffaf1; }.dining-card > small { color: #a46625; font-size: 10px; font-weight: 800; }.dining-card > strong { display: block; margin: 3px 0 8px; color: var(--forest); font-size: 15px; }.dining-card > p { margin: 6px 0; padding: 7px 8px; border-radius: 9px; font-size: 10px; line-height: 1.5; }.child-meal { background: #edf6e9; color: #315e3c; }.allergy-notice { background: #fff0df; color: #8b5428; }.dish-list { display: grid; margin-top: 9px; gap: 8px; }.dish-list article { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 8px; }.dish-image-placeholder { display: grid; width: 58px; height: 48px; place-items: center; border: 1px dashed #c8b99f; border-radius: 9px; background: #f4efe6; }.dish-image-placeholder span { color: #a79b88; font-size: 9px; }.dish-list article > div:nth-child(2) { display: grid; gap: 3px; }.dish-list article strong { color: var(--ink); font-size: 11px; }.dish-list article small { color: #a06038; font-size: 9px; }.dish-list article > b { color: #b55d2c; font-size: 11px; white-space: nowrap; }
 .restroom-choice { display: grid; grid-template-columns: 30px 1fr auto; width: 100%; margin-top: 8px; padding: 10px; gap: 8px; align-items: center; border: 1px solid #c8dec9; border-radius: 12px; background: #f4faf4; color: var(--ink); text-align: left; }
 .restroom-choice:hover { background: #e7f2e8; }.restroom-choice .restroom-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: var(--forest); color: #fff; font-size: 18px; }.restroom-choice > span:nth-child(2) { display: grid; gap: 2px; }.restroom-choice strong { font-size: 12px; color: var(--forest); }.restroom-choice small { color: var(--muted); font-size: 10px; }.restroom-choice b { padding: 4px 6px; border-radius: 7px; background: #e3f0df; color: #36704e; font-size: 9px; white-space: nowrap; }.restroom-choice b.busy { background: #fff0dc; color: #ae642d; }
 .navigation-summary ~ footer { display: none; }.navigation-summary { min-height: 116px; }.navigation-summary b { color: var(--forest); font-size: 12px; }
 .poi-summary ~ footer { display: none; }.poi-summary b { color: var(--forest); font-size: 11px; }
 .zone-summary { grid-template-columns: 1fr auto; align-items: end; }.zone-summary small,.zone-summary strong,.zone-summary span,.zone-summary b { grid-column: 1; }.zone-summary button { grid-column: 2; grid-row: 1 / span 4; align-self: center; padding: 10px 13px; border: 0; border-radius: 999px; background: var(--forest); color: #fff; font-size: 12px; font-weight: 800; white-space: nowrap; }
-.quick-prompts { display: flex; justify-content: center; gap: 7px; margin: 0 0 8px; overflow-x: auto; scrollbar-width: none; }.quick-prompts::-webkit-scrollbar { display: none; }.quick-prompts button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #c8dcc9; border-radius: 999px; background: #f2f8f1; color: var(--forest); font-size: 11px; font-weight: 700; }.quick-prompts button:active { background: #dceedd; transform: scale(.97); }
+.quick-prompts { position: relative; z-index: 1; display: flex; justify-content: center; gap: 7px; margin: 0 0 8px; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }.quick-prompts::-webkit-scrollbar { display: none; }.quick-prompts button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid #c8dcc9; border-radius: 999px; background: #f2f8f1; color: var(--forest); font-size: 11px; font-weight: 700; cursor: pointer; touch-action: manipulation; pointer-events: auto; }.quick-prompts button:active { background: #dceedd; transform: scale(.97); }
+.quick-prompts .emergency-prompt { border-color: #e4ad96; background: #fff1eb; color: #a8482e; }
+.bag-backdrop { position: fixed; z-index: 29; inset: 0; display: grid; align-items: end; justify-items: center; padding: 10px; background: rgba(19, 34, 28, .4); }.merch-bag-sheet { width: min(100%, 460px); max-height: 84dvh; padding: 16px; overflow-y: auto; border-radius: 24px 24px 18px 18px; background: #fffaf0; box-shadow: 0 -20px 55px rgba(27, 45, 36, .28); }.merch-bag-sheet > header { display: flex; align-items: center; justify-content: space-between; }.merch-bag-sheet > header div { display: grid; gap: 2px; }.merch-bag-sheet > header small { color: #9b6824; font-size: 8px; font-weight: 900; letter-spacing: .1em; }.merch-bag-sheet > header strong { color: var(--forest); font-size: 20px; }.merch-bag-sheet > header button { width: 36px; height: 36px; border: 1px solid #dfd0b4; border-radius: 12px; background: #fff; color: var(--forest); font-size: 22px; }.bag-items { display: grid; margin-top: 14px; gap: 9px; }.bag-items article { display: grid; grid-template-columns: 58px 1fr auto; padding: 9px; align-items: center; gap: 9px; border: 1px solid #e0d3b9; border-radius: 13px; background: #fff; }.bag-items img { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; }.bag-items article > div { display: grid; gap: 2px; }.bag-items small { color: #a56a23; font-size: 8px; }.bag-items strong { color: var(--forest); font-size: 11px; }.bag-items span { color: var(--muted); font-size: 9px; }.bag-items article > b { color: #b55328; font-size: 12px; }.empty-bag { display: grid; min-height: 210px; place-content: center; place-items: center; gap: 6px; text-align: center; }.empty-bag > span { display: grid; width: 58px; height: 58px; place-items: center; border-radius: 18px; background: #eee4ce; color: #947044; font-size: 20px; }.empty-bag strong { color: var(--forest); font-size: 14px; }.empty-bag p { max-width: 250px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }.pickup-options { display: grid; margin-top: 13px; gap: 7px; }.pickup-options > small { color: #8e6a35; font-size: 9px; font-weight: 800; }.pickup-options > button { display: grid; grid-template-columns: 30px 1fr auto; padding: 8px; align-items: center; gap: 7px; border: 1px solid #d4dcbf; border-radius: 11px; background: #f7fbef; color: var(--forest); text-align: left; }.pickup-options > button > span:first-child { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; background: var(--forest); color: #fff; }.pickup-options > button > span:nth-child(2) { display: grid; gap: 2px; }.pickup-options strong { font-size: 10px; }.pickup-options em { color: var(--muted); font-size: 8px; font-style: normal; }.pickup-options b { color: #417052; font-size: 8px; white-space: nowrap; }.merch-bag-sheet > footer { display: grid; grid-template-columns: 1fr auto; margin-top: 14px; padding-top: 12px; align-items: center; gap: 2px 10px; border-top: 1px solid #e0d3b9; }.merch-bag-sheet > footer span { color: var(--muted); font-size: 9px; }.merch-bag-sheet > footer strong { color: #a64724; font-size: 15px; }.merch-bag-sheet > footer button { grid-column: 2; grid-row: 1 / span 2; height: 38px; padding: 0 16px; border: 0; border-radius: 11px; background: var(--forest); color: #fff; font-size: 11px; font-weight: 800; }
+.emergency-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; align-items: end; justify-items: center; padding: 10px; background: rgba(30, 24, 20, .42); }.lost-child-sheet { width: min(100%, 460px); max-height: 92dvh; padding: 16px; overflow-y: auto; border-radius: 24px 24px 18px 18px; background: #fffaf5; box-shadow: 0 -20px 55px rgba(48, 25, 16, .28); }.lost-child-sheet > header { display: flex; align-items: center; justify-content: space-between; }.lost-child-sheet > header div { display: grid; gap: 2px; }.lost-child-sheet > header small { color: #b34e32; font-size: 10px; font-weight: 800; }.lost-child-sheet > header strong { color: #542b20; font-size: 20px; }.lost-child-sheet > header button { width: 36px; height: 36px; border: 1px solid #e6d2c8; border-radius: 12px; background: #fff; color: #7d5145; font-size: 22px; }.lost-child-sheet > p { margin: 12px 0; color: #6f5a52; font-size: 11px; line-height: 1.6; }.emergency-call { display: grid; grid-template-columns: 36px 1fr; padding: 10px; align-items: center; gap: 2px 9px; border-radius: 13px; background: #ae3f2c; color: #fff; text-decoration: none; }.emergency-call > span { grid-row: 1 / span 2; display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.18); font-size: 19px; }.emergency-call strong { font-size: 14px; }.emergency-call small { color: rgba(255,255,255,.78); font-size: 9px; }.lost-child-sheet form { display: grid; margin-top: 13px; gap: 10px; }.lost-child-sheet form label { display: grid; gap: 5px; }.lost-child-sheet form label > span { color: #4f3b34; font-size: 10px; font-weight: 800; }.lost-child-sheet input,.lost-child-sheet textarea { width: 100%; padding: 10px; border: 1px solid #decfc7; border-radius: 10px; outline: 0; background: #fff; color: var(--ink); font: inherit; font-size: 12px; }.lost-child-sheet textarea { min-height: 68px; resize: vertical; }.lost-child-sheet form > small { color: #9a7567; font-size: 9px; line-height: 1.5; }.submit-lost-child { height: 42px; border: 0; border-radius: 12px; background: #9e3c29; color: #fff; font-size: 13px; font-weight: 800; }.submit-lost-child:disabled { opacity: .4; }
 
 @keyframes typing {
   50% { opacity: 0.25; transform: translateY(-2px); }

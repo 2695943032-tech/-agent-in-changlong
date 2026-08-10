@@ -20,6 +20,10 @@ const props = withDefaults(defineProps<{
   showServices?: boolean
   navigationRoute?: ParkNavigationRoute | null
   actualRouteZoneIds?: readonly AnimalId[]
+  heatByZone?: Partial<Record<AnimalId, number>>
+  initialZoom?: number
+  minZoom?: number
+  initialPanXPercent?: number
 }>(), {
   routeZoneIds: () => [],
   completedZoneIds: () => [],
@@ -31,6 +35,10 @@ const props = withDefaults(defineProps<{
   showServices: false,
   navigationRoute: null,
   actualRouteZoneIds: () => [],
+  heatByZone: () => ({}),
+  initialZoom: 1.15,
+  minZoom: 1.15,
+  initialPanXPercent: 0,
 })
 
 const emit = defineEmits<{
@@ -140,7 +148,7 @@ const navigationPoints = computed(() => props.navigationRoute?.path.map(point =>
 
 const positionPoint = computed(() => props.currentPosition ? geoToRasterPoint(props.currentPosition) : null)
 const mapViewport = useTemplateRef<HTMLElement>('mapViewport')
-const zoom = shallowRef(1.15)
+const zoom = shallowRef(props.initialZoom)
 const pan = reactive({ x: 0, y: 0 })
 let pinch: { distance: number, zoom: number } | null = null
 let drag: { x: number, y: number, panX: number, panY: number } | null = null
@@ -160,12 +168,22 @@ function constrainPan() {
   pan.y = Math.max(-maxY, Math.min(maxY, pan.y))
 }
 
+onMounted(async () => {
+  await nextTick()
+  const rect = mapViewport.value?.getBoundingClientRect()
+  if (!rect || !props.initialPanXPercent) return
+  pan.x = rect.width * props.initialPanXPercent / 100
+  constrainPan()
+})
+
 function markerPoint(zone: AnimalPoi) {
   const point = geoToRasterPoint(zone)
   const offset = markerOffsets[zone.id]
   return { x: point.x + (offset?.x ?? 0), y: point.y + (offset?.y ?? 0) }
 }
-function setZoom(next: number) { zoom.value = Math.max(1.15, next); constrainPan() }
+function heatRadius(zone: AnimalPoi) { return 150 + (props.heatByZone[zone.id] ?? 0) * 2.2 }
+function heatOpacity(zone: AnimalPoi) { return .16 + (props.heatByZone[zone.id] ?? 0) / 180 }
+function setZoom(next: number) { zoom.value = Math.max(props.minZoom, next); constrainPan() }
 function onWheel(event: WheelEvent) { event.preventDefault(); setZoom(zoom.value * (event.deltaY > 0 ? .88 : 1.14)) }
 function onPointerDown(event: PointerEvent) { drag = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }; mapViewport.value?.setPointerCapture(event.pointerId) }
 function onPointerMove(event: PointerEvent) { if (!drag || zoom.value < 1.3) return; pan.x = drag.panX + event.clientX - drag.x; pan.y = drag.panY + event.clientY - drag.y; constrainPan() }
@@ -231,6 +249,17 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
           :class="`surveyed-road ${road.kind}`"
         />
       </g>
+
+        <g v-if="Object.keys(heatByZone).length" class="heat-layer" aria-label="园区实时热力">
+          <circle
+            v-for="zone in animals"
+            :key="`heat-${zone.id}`"
+            :cx="geoToRasterPoint(zone).x"
+            :cy="geoToRasterPoint(zone).y"
+            :r="heatRadius(zone)"
+            :style="{ opacity: heatOpacity(zone) }"
+          />
+        </g>
 
         <g v-if="showGeofences" class="geofences">
           <ellipse
@@ -333,6 +362,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
 .map-stage { display: block; width: 100%; height: 100%; overflow: hidden; transform-origin: center; transition: transform 80ms linear; background: #8bb579; }
 .raster-map:active { cursor: grabbing; }
 .map-tile { pointer-events: none; }
+.heat-layer { pointer-events: none; mix-blend-mode: multiply; }.heat-layer circle { fill: #ef3f27; filter: blur(34px); }
 .surveyed-road { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .surveyed-road.footway,.surveyed-road.pedestrian,.surveyed-road.path,.surveyed-road.steps { stroke: rgba(255,255,255,.82); stroke-width: 12; }
 .surveyed-road.service,.surveyed-road.unclassified { stroke: rgba(124,96,53,.46); stroke-width: 15; }

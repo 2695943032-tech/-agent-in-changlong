@@ -21,7 +21,7 @@ const phases = computed<JourneyPhase[]>(() => [
   {
     id: 'inpark', index: '02', eyebrow: '正在发生', title: '园中探险', englishTitle: 'LIVE',
     description: '地图感知每次抵达，六位伙伴、现场科普和实时改线随空间逐一苏醒。',
-    to: '/inpark', accent: '#6fc596', accentSoft: '#bde4ce', image: '/companions/elephant-selection.png', animal: '大象澜澜',
+    to: '/pretrip', accent: '#6fc596', accentSoft: '#bde4ce', image: '/companions/elephant-selection.png', animal: '大象澜澜',
     status: park.state.value.started ? `${park.state.value.visitedZoneIds.length}/6 展区已探索` : '进入园区',
   },
   {
@@ -48,7 +48,7 @@ function activatePhase(phaseId: JourneyPhase['id']) {
         <span><strong>奇遇伴侣</strong><small>CHIMELONG · SPATIAL AGENT</small></span>
       </NuxtLink>
       <div class="nav-status"><i /> LIVE SYSTEM <span>全周期智能游园</span></div>
-      <NuxtLink class="nav-entry" to="/inpark">进入园区 <span>↗</span></NuxtLink>
+      <NuxtLink class="nav-entry" to="/pretrip">进入园区 <span>↗</span></NuxtLink>
     </header>
 
     <section id="journey-main" class="brand-hero">
@@ -62,7 +62,7 @@ function activatePhase(phaseId: JourneyPhase['id']) {
         <p class="hero-lead blur-reveal reveal-3">从出发前的一句期待，到园中每一次空间唤醒，再到回家后的长久珍藏。动物 Agent 不只是导游，而是贯穿整段旅程的朋友。</p>
         <div class="hero-actions blur-reveal reveal-4">
           <MagicShimmerLink to="/pretrip" meta="START WITH A COMPANION" label="开始我的奇遇" />
-          <NuxtLink class="quiet-link" to="/inpark"><span>已经到园区</span><strong>直接打开实时地图</strong><i>→</i></NuxtLink>
+          <NuxtLink class="quiet-link" to="/pretrip"><span>已经到园区</span><strong>打开 Agent 对话与地图</strong><i>→</i></NuxtLink>
         </div>
         <dl class="hero-metrics blur-reveal reveal-5">
           <div><dt>06</dt><dd>动物伙伴</dd></div>

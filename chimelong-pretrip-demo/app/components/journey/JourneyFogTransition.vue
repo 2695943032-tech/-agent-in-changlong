@@ -4,8 +4,6 @@ const { active, label, startFogTransition, finishFogTransition } = useFogTransit
 
 function labelForPath(path: string): string {
   if (path === '/pretrip') return '奇遇启程 · 正在展开'
-  if (path === '/inpark') return '穿过云雾 · 抵达园中'
-  if (path.startsWith('/inpark/zone/')) return '下一站奇遇 · 正在靠近'
   if (path.startsWith('/posttrip')) return '收拢回忆 · 正在成册'
   if (path === '/') return '回到旅程 · 再次相遇'
   return '下一段奇遇 · 正在展开'
