@@ -16,6 +16,7 @@ import { parkLiveLandmarks } from '#shared/data/parkLiveData.generated'
 import { parkMapPoints } from '#shared/data/parkGeometry.generated'
 import { zoneExperienceConfigs } from '#shared/data/zoneExperience'
 import { navigationRouteFromPosition } from '#shared/utils/parkGeo'
+import { dueShowReminders } from '../../utils/showReminders'
 import ChatAnswerPanel from './ChatAnswerPanel.vue'
 import DraggableCompanion from './DraggableCompanion.vue'
 import ParkRasterMap from '../map/ParkRasterMap.vue'
@@ -66,10 +67,6 @@ let animalStateTimer: ReturnType<typeof setInterval> | undefined
 onMounted(() => { animalStateTimer = setInterval(() => { animalStateIndex.value = (animalStateIndex.value + 1) % animalStates.length }, 8000) })
 onMounted(() => { heatTimer = setInterval(() => { heatTick.value += 1 }, 6000) })
 onMounted(() => presence.start())
-onMounted(() => {
-  checkShowReminders()
-  showReminderTimer = setInterval(checkShowReminders, 30_000)
-})
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' || document.activeElement?.tagName !== 'INPUT') return
   if (!composerText.value.trim()) return
@@ -77,7 +74,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
   sendChat()
 }
 onMounted(() => window.addEventListener('keydown', handleComposerKeydown))
-onBeforeUnmount(() => { if (animalStateTimer) clearInterval(animalStateTimer); if (heatTimer) clearInterval(heatTimer); if (showReminderTimer) clearInterval(showReminderTimer) })
+onBeforeUnmount(() => { if (animalStateTimer) clearInterval(animalStateTimer); if (heatTimer) clearInterval(heatTimer); stopShowReminderTimer() })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleComposerKeydown))
 const toolsOpen = shallowRef(false)
 const voiceActive = shallowRef(false)
@@ -108,20 +105,33 @@ function checkShowReminders() {
   const venue = parkServices.find(service => service.serviceKind === 'show')
   if (!venue) return
   const now = new Date()
-  for (const startLabel of showTimes) {
-    const [hours, minutes] = startLabel.split(':').map(Number)
-    const start = new Date(now)
-    start.setHours(hours!, minutes!, 0, 0)
-    const minutesUntil = (start.getTime() - now.getTime()) / 60000
-    const key = `${now.toDateString()}-${venue.id}-${startLabel}`
-    if (minutesUntil > 30 || minutesUntil < 0 || announcedShows.has(key)) continue
-    announcedShows.add(key)
+  const reminders = dueShowReminders({
+    parkActivated: Boolean(arrivalMessage.value),
+    now,
+    venueId: venue.id,
+    showTimes,
+    announcedKeys: announcedShows,
+  })
+  for (const { key, startLabel } of reminders) {
     try {
       localMessages.value.push({ id: `show-${key}`, type: 'show-reminder', service: venue, route: navigationRouteFromPosition(demoPosition, venue), startLabel })
+      announcedShows.add(key)
       void scrollToLatest()
     }
     catch { /* the message can safely wait for the next location update */ }
   }
+}
+
+function startShowReminderTimer() {
+  if (showReminderTimer || !arrivalMessage.value) return
+  checkShowReminders()
+  showReminderTimer = setInterval(checkShowReminders, 30_000)
+}
+
+function stopShowReminderTimer() {
+  if (!showReminderTimer) return
+  clearInterval(showReminderTimer)
+  showReminderTimer = undefined
 }
 const restroomLabels: Record<string, string> = {
   'service-restroom-panda': '熊猫区洗手间',
@@ -407,13 +417,20 @@ async function scrollToLatest(behavior: ScrollBehavior = 'smooth') {
 }
 
 onMounted(() => void scrollToLatest('auto'))
+onMounted(() => startShowReminderTimer())
 
 watch(arrivalMessage, (message) => {
-  if (!message || localMessages.value.some(item => item.id === 'park-arrival-map')) return
-  localMessages.value.push(
-    { id: 'park-arrival-map', type: 'map' },
-    { id: 'park-arrival-welcome', type: 'message', role: 'assistant', text: message.text },
-  )
+  if (!message) {
+    stopShowReminderTimer()
+    return
+  }
+  if (!localMessages.value.some(item => item.id === 'park-arrival-map')) {
+    localMessages.value.push(
+      { id: 'park-arrival-map', type: 'map' },
+      { id: 'park-arrival-welcome', type: 'message', role: 'assistant', text: message.text },
+    )
+  }
+  if (import.meta.client) startShowReminderTimer()
 }, { immediate: true })
 
 watch([
