@@ -8,6 +8,27 @@ export type DiningChoice = RestaurantId | 'none' | null
 export type PlanMode = 'rules' | 'deepseek-assisted'
 export type PoiKind = 'entrance' | 'animal' | 'restaurant'
 export type ChatStep = 'party' | 'pace' | 'time' | 'animals' | 'dining' | 'supplement' | 'confirm'
+export type ChatActionType = 'view-map' | 'navigate' | 'add-plan' | 'show-schedule' | 'view-menu' | 'start-observation' | 'answer-quiz' | 'view-merch' | 'select-pickup'
+
+/** 聊天回复必须附带的可执行动作，避免只停留在说明文字。 */
+export interface ChatAction {
+  id: string
+  label: string
+  type: ChatActionType
+  payload?: {
+    poiId?: string
+    zoneId?: string
+    serviceId?: string
+    companionId?: CompanionId
+  }
+  variant?: 'primary' | 'secondary'
+}
+
+/** 团团主动提醒的统一说明，reason 用于解释为什么此刻提醒。 */
+export interface TuantuanReminder {
+  type: 'show' | 'toilet' | 'weather' | 'arrival' | 'dining'
+  reason: string
+}
 
 export interface Point {
   x: number
@@ -122,6 +143,8 @@ export interface ChatTurnResponse {
   message: string
   mode: 'template' | 'deepseek'
   recommendedRestaurantId?: RestaurantId
+  actions: ChatAction[]
+  reminder?: TuantuanReminder
 }
 
 export interface PlanStop extends Point {

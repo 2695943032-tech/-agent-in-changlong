@@ -48,26 +48,25 @@ function activatePhase(phaseId: JourneyPhase['id']) {
         <span><strong>奇遇伴侣</strong><small>CHIMELONG · SPATIAL AGENT</small></span>
       </NuxtLink>
       <div class="nav-status"><i /> LIVE SYSTEM <span>全周期智能游园</span></div>
-      <NuxtLink class="nav-entry" to="/pretrip">进入园区 <span>↗</span></NuxtLink>
+      <NuxtLink class="nav-entry" to="/pretrip?tab=chat">问问团团 <span>↗</span></NuxtLink>
     </header>
 
     <section id="journey-main" class="brand-hero">
       <div class="hero-copy">
-        <div class="hero-index blur-reveal reveal-1"><span>FULL-CYCLE EXPERIENCE</span><b>2026 / 01</b></div>
+        <div class="hero-index blur-reveal reveal-1"><span>AI PARK CONCIERGE</span><b>随时响应 / 现在出发</b></div>
         <h1 class="blur-reveal reveal-2">
-          让每一次<br>
-          <em>相遇</em>，都有<br>
-          伙伴记得
+          现在需要什么？<br>
+          <em>团团</em>马上帮你
         </h1>
-        <p class="hero-lead blur-reveal reveal-3">从出发前的一句期待，到园中每一次空间唤醒，再到回家后的长久珍藏。动物 Agent 不只是导游，而是贯穿整段旅程的朋友。</p>
+        <p class="hero-lead blur-reveal reveal-3">不用守着一条预设路线。想找厕所、赶演出、带孩子休息或看看附近吃什么，动物伙伴会结合你的位置和当前情况，给出下一步建议。</p>
         <div class="hero-actions blur-reveal reveal-4">
-          <MagicShimmerLink to="/pretrip" meta="START WITH A COMPANION" label="开始我的奇遇" />
-          <NuxtLink class="quiet-link" to="/pretrip"><span>已经到园区</span><strong>打开 Agent 对话与地图</strong><i>→</i></NuxtLink>
+          <MagicShimmerLink to="/pretrip?tab=chat" meta="ASK YOUR PARK COMPANION" label="和团团聊聊" />
+          <NuxtLink class="quiet-link" to="/pretrip?tab=map"><span>已经在园区</span><strong>直接打开园区地图</strong><i>→</i></NuxtLink>
         </div>
         <dl class="hero-metrics blur-reveal reveal-5">
-          <div><dt>06</dt><dd>动物伙伴</dd></div>
-          <div><dt>03</dt><dd>旅程阶段</dd></div>
-          <div><dt>01</dt><dd>持续记忆</dd></div>
+          <div><dt>即时</dt><dd>服务导航</dd></div>
+          <div><dt>亲子</dt><dd>约束感知</dd></div>
+          <div><dt>主动</dt><dd>行程提醒</dd></div>
         </dl>
       </div>
 
@@ -78,10 +77,21 @@ function activatePhase(phaseId: JourneyPhase['id']) {
       />
     </section>
 
+    <section class="concierge-panel" aria-labelledby="concierge-title">
+      <header><span>NOW · WHAT DO YOU NEED</span><h2 id="concierge-title">现在需要什么？</h2><p>从一个具体问题开始，团团会把回答落到地图与下一步行动。</p></header>
+      <div class="concierge-actions">
+        <NuxtLink to="/pretrip?tab=chat"><i>⌖</i><span><strong>我要去卫生间</strong><small>查看附近厕所与排队情况</small></span><b>›</b></NuxtLink>
+        <NuxtLink to="/pretrip?tab=chat"><i>餐</i><span><strong>附近有什么吃的</strong><small>按步行距离推荐餐厅</small></span><b>›</b></NuxtLink>
+        <NuxtLink to="/pretrip?tab=chat"><i>演</i><span><strong>赶下一场演出</strong><small>提醒时间并给出路线</small></span><b>›</b></NuxtLink>
+        <NuxtLink to="/pretrip?tab=map" class="map-action"><i>图</i><span><strong>打开园区地图</strong><small>查看展区、服务点与路网</small></span><b>›</b></NuxtLink>
+      </div>
+      <footer><i /> <span>亲子模式已准备：儿童身高、休息节奏与儿童餐建议会优先进入判断。</span></footer>
+    </section>
+
     <section class="journey-section" aria-labelledby="journey-title">
       <header class="journey-heading">
-        <div><span>THE JOURNEY</span><h2 id="journey-title">一场奇遇，三段旅程</h2></div>
-        <p>选择现在所处的阶段。已完成的状态会保存在本机，下一次回来仍能从原处继续。</p>
+        <div><span>THE JOURNEY</span><h2 id="journey-title">从即时帮助，到长期陪伴</h2></div>
+        <p>路线规划只是其中一个能力；对话、空间唤醒、科普任务和游后回忆会贯穿整段旅程。</p>
       </header>
 
       <div class="journey-rail">
@@ -167,6 +177,11 @@ function activatePhase(phaseId: JourneyPhase['id']) {
 .hero-metrics dt { font-family: Georgia, serif; font-size: 25px; }
 .hero-metrics dd { margin: 0; color: rgba(242,237,223,.4); font-size: 8px; letter-spacing: .12em; }
 
+.concierge-panel { position: relative; z-index: 3; margin: -28px 7.2% 0; padding: 25px; border: 1px solid rgba(217,174,88,.23); background: linear-gradient(135deg,rgba(21,57,46,.98),rgba(10,35,28,.98)); box-shadow: 0 24px 48px rgba(0,0,0,.18); }
+.concierge-panel header { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 28px; }.concierge-panel header span { color: var(--home-gold); font-family: ui-monospace,Consolas,monospace; font-size: 8px; letter-spacing: .14em; }.concierge-panel h2 { margin: 0; font-family: var(--font-display); font-size: 27px; letter-spacing: .04em; }.concierge-panel header p { max-width: 290px; margin: 0; color: rgba(242,237,223,.55); font-size: 9px; line-height: 1.7; }
+.concierge-actions { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); margin-top: 20px; gap: 8px; }.concierge-actions a { display: grid; grid-template-columns: 34px 1fr auto; min-height: 72px; padding: 9px; align-items: center; gap: 8px; border: 1px solid rgba(242,237,223,.13); background: rgba(255,255,255,.035); color: var(--home-ivory); text-decoration: none; transition: border-color .22s ease,background .22s ease,transform .22s ease; }.concierge-actions a:hover { border-color: rgba(217,174,88,.6); background: rgba(255,255,255,.08); transform: translateY(-2px); }.concierge-actions i { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: rgba(217,174,88,.16); color: var(--home-gold); font-size: 13px; font-style: normal; font-weight: 900; }.concierge-actions span { display: grid; gap: 3px; }.concierge-actions strong { font-size: 10px; }.concierge-actions small { color: rgba(242,237,223,.45); font-size: 7px; line-height: 1.4; }.concierge-actions b { color: var(--home-gold); font-size: 15px; }.concierge-actions .map-action { border-color: rgba(111,197,150,.42); background: rgba(111,197,150,.09); }.concierge-actions .map-action i { background: rgba(111,197,150,.18); color: #9ee2b9; }
+.concierge-panel footer { display: flex; margin-top: 17px; align-items: center; gap: 7px; color: rgba(242,237,223,.53); font-size: 8px; }.concierge-panel footer i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #70d29a; box-shadow: 0 0 0 5px rgba(112,210,154,.1); }
+
 .hero-preview { position: relative; width: min(100%, 450px); align-self: center; justify-self: center; }
 .preview-coordinate { display: flex; justify-content: space-between; margin-bottom: 9px; color: rgba(242,237,223,.33); font-family: ui-monospace, Consolas, monospace; font-size: 7px; letter-spacing: .12em; }
 .preview-frame { position: relative; aspect-ratio: .89; padding: 18px; border: 1px solid rgba(242,237,223,.14); background: rgba(255,255,255,.022); box-shadow: 0 34px 80px rgba(0,0,0,.28); }
@@ -249,6 +264,10 @@ function activatePhase(phaseId: JourneyPhase['id']) {
   .hero-metrics div { min-width: 0; flex: 1; padding: 0 15px; }
   .hero-metrics dt { font-size: 21px; }
   .hero-metrics dd { font-size: 7px; }
+  .concierge-panel { margin: -28px 14px 0; padding: 18px 14px; }
+  .concierge-panel header { display: block; }.concierge-panel h2 { margin-top: 7px; font-size: 24px; }.concierge-panel header p { margin-top: 5px; font-size: 9px; }
+  .concierge-actions { grid-template-columns: 1fr 1fr; margin-top: 16px; gap: 7px; }.concierge-actions a { grid-template-columns: 30px 1fr; min-height: 67px; padding: 8px; gap: 7px; }.concierge-actions i { width: 29px; height: 29px; border-radius: 9px; font-size: 11px; }.concierge-actions b { display: none; }.concierge-actions strong { font-size: 9px; }.concierge-actions small { font-size: 7px; }
+  .concierge-panel footer { margin-top: 14px; font-size: 8px; line-height: 1.5; }
   .hero-preview { width: calc(100% - 22px); }
   .preview-frame { padding: 12px; }
   .preview-note { right: -11px; bottom: -22px; min-width: 210px; padding: 12px 14px; }

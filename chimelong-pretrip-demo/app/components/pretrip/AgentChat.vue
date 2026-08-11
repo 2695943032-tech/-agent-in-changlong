@@ -8,6 +8,8 @@ import type {
   RestaurantId,
   PlanResponse,
   VisitorProfile,
+  ChatAction,
+  TuantuanReminder,
 } from '../../../shared/types/pretrip'
 import type { JourneyMessage } from '../../composables/usePretripJourney'
 import type { ParkNavigationRoute, ParkNavigationTarget, ParkService } from '../../../shared/types/park'
@@ -21,6 +23,10 @@ import ChatAnswerPanel from './ChatAnswerPanel.vue'
 import DraggableCompanion from './DraggableCompanion.vue'
 import ParkRasterMap from '../map/ParkRasterMap.vue'
 import AgentPhotoComposer from './AgentPhotoComposer.vue'
+import { merchCatalog } from '../../utils/merchCatalog'
+import { getParkAgent } from '../../data/parkAgents'
+import ChatActionButtons from '../chat/ChatActionButtons.vue'
+import TuantuanReminderCard from '../chat/TuantuanReminderCard.vue'
 
 const props = defineProps<{
   companion: Companion
@@ -46,30 +52,24 @@ const emit = defineEmits<{
   arrive: []
 }>()
 
-const messageList = useTemplateRef<HTMLElement>('messageList')
+const chatScrollArea = useTemplateRef<HTMLElement>('chatScrollArea')
 const activeCompanion = useState<Companion | null>('pretrip-active-companion', () => null)
 const currentCompanion = computed(() => activeCompanion.value ?? props.companion)
+const currentAgentRole = computed(() => getParkAgent(currentCompanion.value.id)?.role ?? '亲子规划与儿童科普')
 const agentUnlocks = useAgentUnlocks()
 const fieldObservations = useFieldObservations()
 const unlockOffer = shallowRef<{ zone: AnimalPoi, companion: Companion } | null>(null)
 const merchOffer = shallowRef<Companion | null>(null)
 const merchAdded = shallowRef(false)
 const merchBagOpen = shallowRef(false)
-const merchBagIds = ref<Companion['id'][]>([])
+const merchBag = useMerchBag()
+const merchBagIds = merchBag.ids
 const merchOrdering = shallowRef(false)
 const operationsState = shallowRef<OperationsState | null>(null)
 let operationsTimer: ReturnType<typeof setInterval> | undefined
 const learningZoneId = shallowRef<AnimalPoi['id'] | null>(null)
 const scienceAnswer = shallowRef<string | null>(null)
 const learningConfig = computed(() => learningZoneId.value ? zoneExperienceConfigs[learningZoneId.value] : null)
-const merchCatalog: Record<Companion['id'], { name: string, price: string, description: string, badge: string }> = {
-  panda: { name: '团团竹林伙伴毛绒挂件', price: '¥59', description: '柔软短绒材质，附“竹林观察员”限定身份牌。', badge: '熊猫村限定' },
-  tiger: { name: '凯凯虎纹探险徽章', price: '¥39', description: '金属珐琅徽章，记录你完成的虎园观察挑战。', badge: '虎园限定' },
-  koala: { name: '悠米慢游考拉挂件', price: '¥55', description: '考拉 Agent 同款造型，可挂在儿童背包或钥匙圈上。', badge: '考拉园限定' },
-  elephant: { name: '潺潺象群守护水杯', price: '¥79', description: '儿童友好吸管杯，附大象科普贴纸一套。', badge: '亚洲象园限定' },
-  giraffe: { name: '长乐高空观察员帽', price: '¥69', description: '轻量儿童遮阳帽，带长颈鹿观察员刺绣标。', badge: '长颈鹿园限定' },
-  gorilla: { name: '阿悟森林解谜贴纸册', price: '¥45', description: '包含灵长类科普贴纸和园区闯关记录页。', badge: '黑猩猩馆限定' },
-}
 const currentMerch = computed(() => merchOffer.value ? merchCatalog[merchOffer.value.id] : null)
 const currentMerchStock = computed(() => merchOffer.value ? operationsState.value?.merchStock[merchOffer.value.id] ?? 1 : 0)
 const merchSoldOut = computed(() => currentMerchStock.value <= 0)
@@ -81,6 +81,11 @@ const merchBagTotal = computed(() => merchBagItems.value.reduce((total, item) =>
 const progress = computed(() => Math.round(((props.stepIndex + 1) / 7) * 100))
 const reactionKey = shallowRef(0)
 const mapOpen = shallowRef(false)
+const route = useRoute()
+watch([() => route.query.tab, () => props.plan], ([tab]) => {
+  if (tab === 'map') mapOpen.value = true
+  else if (tab === 'chat') mapOpen.value = false
+}, { immediate: true })
 const mapSearch = shallowRef('')
 const testPanelOpen = shallowRef(false)
 const testTime = shallowRef('real')
@@ -122,7 +127,7 @@ const lostChildSubmitting = shallowRef(false)
 const lostChildForm = reactive({ name: '', appearance: '', location: '', guardianPhone: '' })
 const canSubmitLostChild = computed(() => Boolean(!lostChildSubmitting.value && lostChildForm.name.trim() && lostChildForm.appearance.trim() && lostChildForm.location.trim() && lostChildForm.guardianPhone.trim()))
 type LocalTimelineItem =
-  | { id: string, type: 'message', role: 'user' | 'assistant', text: string, agentName?: string, createdAt?: number }
+  | { id: string, type: 'message', role: 'user' | 'assistant', text: string, agentName?: string, actions?: ChatAction[], reminder?: TuantuanReminder, createdAt?: number }
   | { id: string, type: 'map', createdAt?: number }
   | { id: string, type: 'photo', dataUrl: string, agentName: string, usedAi: boolean, createdAt?: number }
   | { id: string, type: 'restroom-results', choices: Array<{ service: ParkService, route: ParkNavigationRoute, queue: number }>, createdAt?: number }
@@ -375,7 +380,7 @@ function answerTestLocationScience(message: PriorityTimelineItem, choice: string
 function addTestMerchToBag(companion: Companion) {
   const stock = operationsState.value?.merchStock[companion.id] ?? 1
   if (stock <= 0 || merchBagIds.value.includes(companion.id)) return
-  merchBagIds.value.push(companion.id)
+  merchBag.add(companion.id)
   void scrollToLatest()
 }
 
@@ -511,7 +516,7 @@ function answerScienceQuestion(choice: string) {
 
 function addMerchToBag() {
   if (!merchOffer.value || !currentMerch.value || merchAdded.value || merchSoldOut.value) return
-  merchBagIds.value.push(merchOffer.value.id)
+  merchBag.add(merchOffer.value.id)
   merchAdded.value = true
   localMessages.value.push({
     id: `${Date.now()}-merch`,
@@ -532,7 +537,7 @@ async function submitMerchOrder() {
       method: 'POST',
       body: { ids: [...merchBagIds.value] },
     })
-    merchBagIds.value = []
+    merchBag.clear()
     merchAdded.value = false
     merchBagOpen.value = false
     localMessages.value.push({
@@ -540,6 +545,13 @@ async function submitMerchOrder() {
       type: 'message',
       role: 'assistant',
       text: `下单成功，共 ${orderedCount} 件。纪念礼品已经为你预留，请前往园区周边领取点领取。`,
+      actions: merchPickupRoutes.value.map(({ service }) => ({
+        id: `pickup-${service.id}`,
+        label: `导航至${service.name}`,
+        type: 'select-pickup' as const,
+        payload: { serviceId: service.id },
+        variant: 'primary' as const,
+      })),
       createdAt: simulatedNow().getTime(),
     })
     void scrollToLatest()
@@ -588,6 +600,7 @@ async function sendChat(presetText?: string) {
   restroomRequest.value = false
   destinationRequest.value = null
   localMessages.value.push({ id: `${Date.now()}-u`, type: 'message', role: 'user', text, createdAt: simulatedNow().getTime() })
+  void scrollToLatest()
   if (showRestaurantMenuFromChat(text)) return
   if (/我(?:到|进)(?:了|啦)|到园(?:了|啦)?|进园(?:了|啦)?|已经到(?:了|啦)/.test(text)) {
     emit('arrive')
@@ -629,6 +642,7 @@ async function sendChat(presetText?: string) {
         activeDestination.value = response.navigationTarget
         activeNavigation.value = navigationRouteFromPosition(demoPosition, response.navigationTarget)
       }
+      void scrollToLatest()
     }
     catch {
       localMessages.value.push({ id: `${Date.now()}-a`, type: 'message', role: 'assistant', text: '我收到了。网络暂时不稳定，但我会继续为你保留这条请求。', createdAt: simulatedNow().getTime() })
@@ -702,6 +716,68 @@ function navigateToMerchPickup(choice: { service: ParkService, route: ParkNaviga
   mapOpen.value = true
 }
 
+/** 聊天里的按钮全部通过这里落到地图、菜单、计划或现场任务。 */
+function executeChatAction(action: ChatAction) {
+  if (action.type === 'view-map') {
+    mapOpen.value = true
+    return
+  }
+  if (action.type === 'show-schedule') {
+    checkShowReminders()
+    localMessages.value.push({
+      id: `${Date.now()}-schedule-action`, type: 'message', role: 'assistant',
+      text: '下一场演出信息已为你整理好；开演前 30 分钟，团团会再结合你的位置提醒你出发。',
+      actions: [{ id: 'view-map', label: '查看剧场路线', type: 'view-map', variant: 'primary' }],
+      reminder: { type: 'show', reason: '演出提醒会按开演时间与步行时长触发，避免你太早等候或错过开场。' },
+      createdAt: simulatedNow().getTime(),
+    })
+    void scrollToLatest()
+    return
+  }
+  if (action.type === 'view-menu') {
+    const venue = diningTestServices.find(service => service.id === action.payload?.serviceId) ?? diningTestServices[0]
+    if (venue) {
+      diningOffer.value = venue
+      localMessages.value.push({
+        id: `${Date.now()}-menu-action`, type: 'message', role: 'assistant',
+        text: `${venue.name}的儿童餐、主要过敏原和菜品已为你展开。`,
+        actions: [{ id: `go-${venue.id}`, label: '现在出发', type: 'navigate', payload: { serviceId: venue.id }, variant: 'primary' }],
+        reminder: { type: 'dining', reason: '这里提供儿童餐，并可优先推荐当前排队较短的选择。' },
+        createdAt: simulatedNow().getTime(),
+      })
+    }
+    void scrollToLatest()
+    return
+  }
+  if (action.type === 'navigate' || action.type === 'select-pickup') {
+    const service = mapServices.find(item => item.id === action.payload?.serviceId)
+    if (service) navigateToDestination({ target: service, route: navigationRouteFromPosition(demoPosition, service) })
+    else mapOpen.value = true
+    return
+  }
+  if (action.type === 'start-observation' || action.type === 'answer-quiz') {
+    const zone = props.animals.find(item => item.id === action.payload?.zoneId)
+    if (zone) offerAnimalAgent(zone)
+    return
+  }
+  if (action.type === 'view-merch') {
+    const nextCompanion = props.companions.find(item => item.id === action.payload?.companionId) ?? currentCompanion.value
+    merchOffer.value = nextCompanion
+    merchAdded.value = merchBagIds.value.includes(nextCompanion.id)
+    void scrollToLatest()
+    return
+  }
+  if (action.type === 'add-plan') {
+    localMessages.value.push({
+      id: `${Date.now()}-plan-action`, type: 'message', role: 'assistant',
+      text: '已加入今日计划。入园后团团会根据实时位置和排队情况继续调整建议。',
+      actions: [{ id: 'view-map', label: '查看路线', type: 'view-map', variant: 'primary' }],
+      createdAt: simulatedNow().getTime(),
+    })
+    void scrollToLatest()
+  }
+}
+
 function startZoneNavigation() {
   const zone = selectedZone.value
   if (!zone) return
@@ -716,6 +792,12 @@ function startZoneNavigation() {
   activeRestroom.value = null
   activeNavigation.value = navigationRouteFromPosition(demoPosition, target)
   selectedZone.value = null
+}
+
+function closeMap() {
+  // 地图是底部一级入口时保持为独立页面，只能通过底部导航切换离开。
+  if (route.query.tab === 'map') return
+  mapOpen.value = false
 }
 
 function reactToChoice() {
@@ -827,9 +909,9 @@ function selectZonePoi(zone: AnimalPoi) {
 
 async function scrollToLatest(behavior: ScrollBehavior = 'smooth') {
   await nextTick()
-  const list = messageList.value
-  if (!list) return
-  list.scrollTo({ top: list.scrollHeight, behavior })
+  const area = chatScrollArea.value
+  if (!area) return
+  area.scrollTo({ top: area.scrollHeight, behavior })
 }
 
 onMounted(() => void scrollToLatest('auto'))
@@ -890,6 +972,7 @@ watch([
       </div>
     </header>
 
+    <div ref="chatScrollArea" class="chat-scroll-area">
     <div class="progress-row">
       <span><i :style="{ width: `${progress}%` }" /></span>
       <small>{{ stepIndex + 1 }}/7</small>
@@ -897,7 +980,7 @@ watch([
 
     <DraggableCompanion :companion="currentCompanion" :reaction-key="reactionKey" :animal-state="animalState" />
 
-    <div ref="messageList" class="message-list" aria-live="polite">
+    <div class="message-list" aria-live="polite">
       <div
         v-for="message in journeyMessages"
         :key="message.id"
@@ -907,6 +990,8 @@ watch([
         <span v-if="message.role === 'assistant'" class="message-avatar">{{ companion.name.slice(0, 1) }}</span>
         <div class="message-bubble">
           <p>{{ message.text }}</p>
+          <TuantuanReminderCard v-if="message.reminder" :reminder="message.reminder" />
+          <ChatActionButtons :actions="message.actions ?? []" @action="executeChatAction" />
           <small v-if="message.mode === 'deepseek'">DeepSeek生成</small>
         </div>
       </div>
@@ -948,6 +1033,7 @@ watch([
           <span class="message-avatar">演</span>
           <div class="message-bubble">
             <p>演出提醒：{{ message.service.name }}将在 {{ message.startLabel }} 开始，距离开演约半小时。</p>
+            <TuantuanReminderCard :reminder="{ type: 'show', reason: `距开演约 30 分钟，按你当前位置步行约 ${message.route.walkingMinutes} 分钟，现在准备最从容。` }" />
             <button class="show-route-card" type="button" @click="navigateToShowReminder(message)">
               <span>⌖</span><strong>{{ message.service.name }}</strong><em>距你 {{ message.route.distanceMeters }} 米 · 步行约 {{ message.route.walkingMinutes }} 分钟</em><b>查看路线</b>
             </button>
@@ -994,7 +1080,11 @@ watch([
         </div>
         <div v-else-if="message.type === 'message'" class="message-row" :class="message.role">
           <span v-if="message.role === 'assistant'" class="message-avatar">{{ (message.agentName ?? currentCompanion.name).slice(0, 1) }}</span>
-          <div class="message-bubble"><p>{{ message.text }}</p></div>
+          <div class="message-bubble">
+            <p>{{ message.text }}</p>
+            <TuantuanReminderCard v-if="message.reminder" :reminder="message.reminder" />
+            <ChatActionButtons :actions="message.actions ?? []" @action="executeChatAction" />
+          </div>
         </div>
       </template>
 
@@ -1166,8 +1256,9 @@ watch([
     </div>
 
     <p v-if="errorMessage" class="chat-error">{{ errorMessage }}</p>
+    </div>
 
-    <div v-if="!plan" class="answer-dock">
+    <div v-if="!plan && route.query.tab !== 'map'" class="answer-dock">
       <ChatAnswerPanel
         :step="step"
         :profile="profile"
@@ -1182,7 +1273,7 @@ watch([
         @interact="reactToChoice"
       />
     </div>
-    <div v-else class="wechat-dock">
+    <div v-else-if="plan && route.query.tab !== 'map' && !mapOpen" class="wechat-dock">
       <input ref="photoInput" class="photo-input" type="file" accept="image/*" capture="environment" @change="attachPhoto">
       <div class="quick-prompts" aria-label="快捷提问">
         <button type="button" @click="sendQuickPrompt('我要去厕所')">我要去厕所</button>
@@ -1246,9 +1337,9 @@ watch([
       </div>
     </Transition>
 
-      <Transition name="map-drop"><div v-if="mapOpen && plan" class="map-backdrop" @click.self="mapOpen = false"><div class="map-modal" role="dialog" aria-modal="true" aria-label="园区路线地图">
-      <header><div><small>园区实时地图</small><strong>{{ plan.title }}</strong><label class="map-search"><span>⌕</span><input placeholder="搜索动物、展区或服务"></label></div><button type="button" @click="mapOpen = false">×</button></header>
-       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan.actualAnimalOrder" :current-position="demoPosition" :services="mapServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
+      <Transition name="map-drop"><div v-if="mapOpen" :class="['map-backdrop', { 'tab-map-backdrop': route.query.tab === 'map' }]" @click.self="closeMap"><div :class="['map-modal', { 'tab-map-modal': route.query.tab === 'map' }]" role="dialog" aria-modal="true" aria-label="园区路线地图">
+      <header><div><small>园区实时地图 · POI 与路网</small><strong>{{ plan?.title ?? '长隆野生动物世界' }}</strong><label class="map-search"><span>⌕</span><input placeholder="搜索动物、展区或服务"></label></div><button v-if="route.query.tab !== 'map'" type="button" @click="closeMap">×</button></header>
+       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan?.actualAnimalOrder ?? []" :current-position="demoPosition" :services="mapServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
       <footer v-if="activeDestination && !activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ activeDestination.name }}</strong><span>已为你规划园区步行路线。</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ restroomLabels[activeRestroom.id] ?? activeRestroom.name }}</strong><span>{{ activeRestroom.detail }}</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="poiInfo" class="poi-summary"><small>园区 POI 信息</small><strong>{{ poiInfo.name }}</strong><span>{{ poiInfo.detail }}</span><b>{{ poiInfo.hours }} · {{ poiInfo.metric }}</b></footer>
@@ -1264,7 +1355,10 @@ watch([
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: auto auto minmax(220px, 1fr) auto;
+  /* 防止 auto 网格行把剩余高度均分，导致头部、进度和首条对话被拉得很开。 */
+  align-content: start;
+  /* 聊天内容为空时不再强制占 220px，优先给底部的确认操作留出完整可点击空间。 */
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 100dvh;
   height: 100dvh;
   overflow: hidden;
@@ -1303,6 +1397,12 @@ watch([
 .reset-button {
   font-size: 11px;
   font-weight: 800;
+}
+
+.chat-scroll-area {
+  min-height: 0;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 .header-actions { display: flex; gap: 5px; }.header-actions button { width: 40px; }.test-button { border-color: #b9d5bd; background: #eff7ef; color: #326b43; font-size: 11px; font-weight: 800; }
@@ -1388,8 +1488,10 @@ watch([
 .message-list {
   display: flex;
   min-height: 0;
-  padding: 14px 17px 22px;
-  overflow-y: auto;
+  max-height: none;
+  /* 给固定的快捷键与输入栏预留完整高度，最后一条消息不会被覆盖。 */
+  padding: 14px 17px 230px;
+  overflow: visible;
   flex-direction: column;
   gap: 10px;
   scroll-behavior: smooth;
@@ -1472,9 +1574,21 @@ watch([
 .typing-bubble i:nth-child(3) { animation-delay: 280ms; }
 
 .answer-dock {
-  position: relative;
-  z-index: 2;
-  padding: 0 12px max(12px, env(safe-area-inset-bottom));
+  /* 答题面板固定停在底部导航上方，不能再由内容高度把确认按钮挤到导航后面。 */
+  position: absolute;
+  right: 0;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 0;
+  z-index: 12;
+  min-height: 0;
+  max-height: min(62dvh, 560px);
+  padding: 0 12px 28px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scroll-padding-bottom: 16px;
+  background: linear-gradient(to top, var(--paper) 88%, rgba(250, 248, 241, 0));
 }
 
 .chat-error {
@@ -1499,7 +1613,7 @@ watch([
 .map-search { display: flex; align-items: center; height: 38px; margin-top: 10px; padding: 0 11px; gap: 6px; border-radius: 12px; background: #e9e9e5; color: #6b716d; }.map-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }.map-canvas { min-height: 0; }.map-modal footer { display: grid; min-height: 116px; padding: 34px 16px max(15px, env(safe-area-inset-bottom)); gap: 2px; border-top: 1px solid var(--line); background: #fff; }.map-modal footer strong { color: var(--forest); font-size: 13px; }.map-modal footer span { color: var(--muted); font-size: 10px; }
 .zone-status-card { display: none; }
 .zone-status-card { position: absolute; right: 12px; bottom: 70px; left: 12px; display: grid; padding: 14px; gap: 6px; border-radius: 16px; background: rgba(255,255,255,.97); box-shadow: 0 12px 28px rgba(7,56,45,.2); }.zone-status-card button { position: absolute; top: 8px; right: 9px; border: 0; background: transparent; color: var(--muted); font-size: 20px; }.zone-status-card small { color: var(--accent-dark); font-size: 10px; font-weight: 800; }.zone-status-card strong { color: var(--forest); font-size: 17px; }.zone-status-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }.zone-status-card div { display: flex; flex-wrap: wrap; gap: 5px; }.zone-status-card span { padding: 5px 7px; border-radius: 8px; background: #edf5ed; color: var(--forest); font-size: 9px; }
-.wechat-dock { position: relative; z-index: 8; padding: 9px 12px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #f5f4f0; pointer-events: auto; }
+.wechat-dock { position: fixed; right: 50%; bottom: calc(62px + env(safe-area-inset-bottom)); left: auto; z-index: 91; width: min(100%, 480px); min-height: 112px; padding: 9px 12px max(10px, env(safe-area-inset-bottom)); box-sizing: border-box; background: var(--paper); pointer-events: auto; transform: translateX(50%); }
 .animal-status { color: #42805a !important; font-weight: 800; }.composer-row { display: grid; grid-template-columns: 35px 1fr 34px 34px; align-items: center; gap: 8px; }.composer-row input { min-width: 0; height: 37px; padding: 0 11px; border: 0; border-radius: 7px; background: #fff; color: var(--ink); font-size: 13px; }.composer-row button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; background: transparent; color: #31443d; font-size: 23px; line-height: 1; }.composer-row button.active { color: #ba6332; }.plus-button { font-size: 26px !important; }.photo-input { display: none; }.voice-hint { display: block; margin: 5px 44px 0; color: #ba6332; font-size: 10px; }.tool-grid { display: grid; grid-template-columns: repeat(4, minmax(58px, 72px)); justify-content: space-between; padding: 15px 6px 5px; gap: 7px; }.tool-grid button { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: var(--ink); font-size: 11px; }.tool-grid i { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 12px; background: #e3e5df; color: var(--forest); font-size: 25px; font-style: normal; }.tool-grid span { position: relative; }.tool-grid span b { position: absolute; top: -56px; right: -13px; display: grid; min-width: 17px; height: 17px; padding: 0 4px; place-items: center; border-radius: 999px; background: #bd4c2e; color: #fff; font-size: 9px; }
 
 .zone-status-card { display: none; }
@@ -1536,4 +1650,41 @@ watch([
 .map-modal header strong { font-size: 20px; }
 .map-search { width: min(100%, 340px); height: 44px; margin: 14px auto 0; padding: 0 14px; gap: 8px; border-radius: 14px; }
 .map-search input { font-size: 15px; }
+.tab-map-backdrop { background: #f1f0eb; }
+.tab-map-modal { width: min(100%, 480px); border: 0; border-radius: 0; background: #f6f4ed; box-shadow: none; }
+.tab-map-modal header { padding: max(12px, env(safe-area-inset-top)) 16px 11px; background: rgba(247,245,238,.96); }
+.tab-map-modal header div { gap: 3px; }
+.tab-map-modal header small { color: #a16c25; font-size: 9px; letter-spacing: .04em; }
+.tab-map-modal header strong { font-size: 18px; }
+.tab-map-modal .map-search { width: 100%; height: 41px; margin: 8px 0 0; border-radius: 13px; background: #e8e9e4; }
+.tab-map-modal footer { min-height: 82px; padding: 12px 16px 14px; }
+.map-modal > footer { align-self: end; margin: 0; }
+.map-modal {
+  /* 地图与底部信息框整体停在导览栏上沿，避免 POI 内容被导航覆盖。 */
+  bottom: calc(62px + env(safe-area-inset-bottom));
+  height: min(calc(100dvh - 74px - env(safe-area-inset-bottom)), 850px);
+}
+.bag-backdrop {
+  padding-bottom: calc(176px + env(safe-area-inset-bottom));
+}
+.merch-bag-sheet { max-height: calc(100dvh - 188px - env(safe-area-inset-bottom)); }
+.merch-bag-sheet > footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-bottom: 8px;
+  background: #fffaf0;
+  box-shadow: 0 -8px 14px #fffaf0;
+}
+.emergency-backdrop {
+  /* 表单停在固定快捷键区正上方，底部输入栏始终可见可操作。 */
+  padding-bottom: calc(176px + env(safe-area-inset-bottom));
+}
+.lost-child-sheet { max-height: calc(100dvh - 124px - env(safe-area-inset-bottom)); }
+.lost-child-sheet .submit-lost-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  box-shadow: 0 -8px 14px #fffaf5;
+}
 </style>

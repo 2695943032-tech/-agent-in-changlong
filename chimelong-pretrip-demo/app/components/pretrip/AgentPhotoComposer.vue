@@ -261,4 +261,19 @@ onBeforeUnmount(() => { if (previewUrl.value) URL.revokeObjectURL(previewUrl.val
 
 <style scoped>
 .photo-backdrop { position: fixed; z-index: 36; inset: 0; display: grid; align-items: end; justify-items: center; padding: 10px; background: rgba(14, 31, 25, .48); }.photo-sheet { width: min(100%, 520px); max-height: 92dvh; padding: 16px; overflow: auto; border-radius: 24px 24px 18px 18px; background: #fffdf8; box-shadow: 0 -20px 60px rgba(14, 35, 28, .34); }.photo-sheet header { display: flex; align-items: center; justify-content: space-between; }.photo-sheet header div { display: grid; gap: 3px; }.photo-sheet header small { color: #a86b25; font-size: 9px; font-weight: 900; letter-spacing: .11em; }.photo-sheet header strong { color: #0f4033; font-size: 19px; }.photo-sheet header button { width: 36px; height: 36px; border: 1px solid #d9dfd5; border-radius: 12px; background: #fff; color: #557066; font-size: 22px; }.photo-preview { position: relative; display: grid; min-height: 250px; margin-top: 14px; place-items: center; overflow: hidden; border-radius: 16px; background: #e9eee7; }.photo-preview > img { display: block; width: 100%; max-height: 58dvh; object-fit: contain; }.photo-preview > span { color: #718179; font-size: 12px; }.photo-loading { position: absolute; inset: 0; display: grid; place-content: center; place-items: center; gap: 9px; background: rgba(18, 46, 37, .48); color: #fff; font-size: 12px; font-weight: 800; }.photo-loading i { width: 28px; height: 28px; border: 3px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }.photo-note { margin: 10px 2px 0; color: #718178; font-size: 10px; line-height: 1.5; }.photo-sheet footer { display: grid; grid-template-columns: 1fr 1.5fr; margin-top: 13px; gap: 8px; }.photo-sheet footer button { height: 42px; border: 1px solid #cedace; border-radius: 12px; background: #fff; color: #456255; font-size: 12px; font-weight: 800; }.photo-sheet footer .primary { border-color: #0b4133; background: #0b4133; color: #fff; }.photo-sheet footer button:disabled { opacity: .45; } @keyframes spin { to { transform: rotate(360deg); } }
+.photo-backdrop {
+  /* 保留聊天快捷键和输入栏，合照面板停在它们正上方。 */
+  padding-bottom: calc(176px + env(safe-area-inset-bottom));
+}
+.photo-sheet {
+  width: min(100%, 480px);
+}
+.photo-sheet footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-top: 10px;
+  background: #fffdf8;
+  box-shadow: 0 -8px 14px #fffdf8;
+}
 </style>

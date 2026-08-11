@@ -64,7 +64,7 @@ const companionSummary = computed(() => {
 <template>
   <main class="memory-book" :style="{ '--memory-accent': companion.accent }">
     <header class="memory-nav">
-      <button type="button" aria-label="返回伙伴对话" @click="navigateTo('/pretrip')">←</button>
+      <button type="button" aria-label="返回我的页面" @click="navigateTo('/me')">←</button>
       <div>
         <span>03 · JOURNEY MEMORY</span>
         <strong>回忆星册</strong>

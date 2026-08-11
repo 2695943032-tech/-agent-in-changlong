@@ -23,7 +23,7 @@ async function copy(record: JourneyRecord) {
 
 <template>
   <section class="album">
-    <header class="album-header"><button type="button" @click="navigateTo('/pretrip')">←</button><div><span>TICKET ARCHIVE</span><h1>奇遇票根册</h1><p>每解锁一位伙伴，收藏一张票根</p></div><small>{{ records.filter(item => item.ticket).length }} 张</small></header>
+    <header class="album-header"><button type="button" @click="navigateTo('/me')">←</button><div><span>TICKET ARCHIVE</span><h1>奇遇票根册</h1><p>每解锁一位伙伴，收藏一张票根</p></div><small>{{ records.filter(item => item.ticket).length }} 张</small></header>
     <div v-if="records.some(item => item.ticket)" class="ticket-list">
       <article v-for="record in records.filter(item => item.ticket)" :key="record.id" class="album-card">
         <NuxtLink :to="`/posttrip/tickets/${record.ticket!.id}`" class="ticket-link">

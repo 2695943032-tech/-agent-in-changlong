@@ -1,5 +1,7 @@
 import type {
   ChatStep,
+  ChatAction,
+  TuantuanReminder,
   ChatTurnResponse,
   Companion,
   CompanionId,
@@ -16,6 +18,8 @@ export interface JourneyMessage {
   text: string
   kind: 'greeting' | 'answer' | 'reply' | 'question'
   mode?: 'template' | 'deepseek'
+  actions?: ChatAction[]
+  reminder?: TuantuanReminder
 }
 
 type JourneyView = 'select-agent' | 'chat' | 'generating' | 'result'
@@ -80,6 +84,7 @@ function createMessage(
   text: string,
   kind: JourneyMessage['kind'],
   mode?: JourneyMessage['mode'],
+  options?: Pick<JourneyMessage, 'actions' | 'reminder'>,
 ): JourneyMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -87,6 +92,7 @@ function createMessage(
     text,
     kind,
     ...(mode ? { mode } : {}),
+    ...options,
   }
 }
 
@@ -175,7 +181,10 @@ export function usePretripJourney() {
           answerSummary,
         },
       })
-      state.value.messages.push(createMessage('assistant', response.message, 'reply', response.mode))
+      state.value.messages.push(createMessage('assistant', response.message, 'reply', response.mode, {
+        actions: response.actions,
+        reminder: response.reminder,
+      }))
       if (response.recommendedRestaurantId) state.value.recommendedRestaurantId = response.recommendedRestaurantId
     }
     catch {
