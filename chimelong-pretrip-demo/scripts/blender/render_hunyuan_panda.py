@@ -10,7 +10,7 @@ from mathutils import Vector
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MODEL = os.environ.get("PANDA_MODEL", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-base-v1.glb"))
 OUTPUT = os.environ.get("PANDA_RENDER", os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png"))
-BLEND_OUTPUT = os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "panda-hunyuan-base-v1.blend"))
+BLEND_OUTPUT = os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-hunyuan-clay-base-v1.blend"))
 
 
 def material(name, color, roughness=0.72, color_attribute=None):

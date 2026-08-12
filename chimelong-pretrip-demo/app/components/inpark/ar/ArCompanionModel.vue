@@ -72,7 +72,7 @@ function buildCompanion(id: CompanionId) {
 }
 
 async function loadDetailedPanda() {
-  const gltf = await new GLTFLoader().loadAsync('/models/companions/panda-tuantuan-ar-v1.glb')
+  const gltf = await new GLTFLoader().loadAsync('/models/companions/panda-tuantuan-ar-v1.glb?v=991fa5b')
   const group = gltf.scene
   group.updateMatrixWorld(true)
   const initialBox = new THREE.Box3().setFromObject(group)
