@@ -1,0 +1,78 @@
+- main [ref=f1e3]:
+  - status [ref=f1e4]: 园中探险 · 长隆奇遇伴侣
+  - main [ref=f1e5]:
+    - navigation "全周期旅程导航" [ref=f1e62]:
+      - link "返回全周期首页" [ref=f1e63] [cursor=pointer]:
+        - /url: /
+        - text: ←
+      - generic [ref=f1e64]:
+        - generic [ref=f1e65]: CHIMELONG JOURNEY
+        - strong [ref=f1e66]: 02 · 园中探险
+      - link "全旅程" [ref=f1e67] [cursor=pointer]:
+        - /url: /
+    - generic [ref=f1e68]:
+      - generic [ref=f1e69]:
+        - generic [ref=f1e70]:
+          - generic [ref=f1e71]: LIVE ADVENTURE · 自由模式
+          - heading "地图想去哪，就点哪里" [level=1] [ref=f1e72]
+        - button "重置" [ref=f1e73] [cursor=pointer]
+        - generic [ref=f1e74]: 0/6区
+      - generic [ref=f1e77]:
+        - region "随行助手抽屉" [ref=f1e78]:
+          - button "上拉问伙伴 / 看路线 ⌃" [ref=f1e79] [cursor=pointer]:
+            - generic [ref=f1e81]: 上拉问伙伴 / 看路线
+            - strong [ref=f1e82]: ⌃
+          - generic [ref=f1e83]:
+            - generic [ref=f1e84]:
+              - button "附近服务 餐饮 · 洗手间 · 休息" [ref=f1e85] [cursor=pointer]:
+                - generic [ref=f1e86]: 附近服务
+                - strong [ref=f1e87]: 餐饮 · 洗手间 · 休息
+              - button "伙伴图鉴 1/6 已解锁" [ref=f1e88] [cursor=pointer]:
+                - generic [ref=f1e89]: 伙伴图鉴
+                - strong [ref=f1e90]: 1/6 已解锁
+            - generic [ref=f1e91]:
+              - generic [ref=f1e92]:
+                - img "团团" [ref=f1e94]
+                - generic [ref=f1e95]:
+                  - generic [ref=f1e96]: 随行对话 · 团团
+                  - strong [ref=f1e97]: 告诉我现场情况，我来改路线
+              - generic [ref=f1e99]:
+                - generic [ref=f1e100]:
+                  - generic [ref=f1e101]: 下一站
+                  - strong [ref=f1e102]: 自由探索
+                - generic [ref=f1e103]:
+                  - generic [ref=f1e104]: 真实路网
+                  - strong [ref=f1e105]: 待定位
+                - generic [ref=f1e106]:
+                  - generic [ref=f1e107]: 预计步行
+                  - strong [ref=f1e108]: —
+                - generic [ref=f1e109]:
+                  - generic [ref=f1e110]: 建议游玩
+                  - strong [ref=f1e111]: 55分钟
+              - generic [ref=f1e112]:
+                - article [ref=f1e137]:
+                  - paragraph [ref=f1e138]: 这里的动物今天吃什么？
+                - article [ref=f1e139]:
+                  - paragraph [ref=f1e140]: 今天熊猫们的食谱是新鲜的竹叶和竹笋，还会搭配少量苹果作为丰富化食物。其他动物的话，建议您查看园区当天的喂食时间表哦。
+                  - generic [ref=f1e141]: DeepSeek · 配置约束回答
+              - generic [ref=f1e116]:
+                - button "这里的动物今天吃什么？" [ref=f1e117] [cursor=pointer]
+                - button "这个展区有什么观察重点？" [ref=f1e118] [cursor=pointer]
+                - button "前面排队很长，帮我调整路线" [ref=f1e119] [cursor=pointer]
+                - button "我有点累，想先休息" [ref=f1e120] [cursor=pointer]
+              - generic [ref=f1e121]:
+                - textbox "例如：熊猫园排队太久，换一站吧" [ref=f1e122]
+                - button "发送" [disabled] [ref=f1e123] [cursor=pointer]
+        - navigation "园中功能" [ref=f1e124]:
+          - button "图 地图" [ref=f1e125] [cursor=pointer]:
+            - generic [ref=f1e126]: 图
+            - generic [ref=f1e127]: 地图
+          - button "+ 服务" [ref=f1e128] [cursor=pointer]:
+            - generic [ref=f1e129]: +
+            - generic [ref=f1e130]: 服务
+          - button "1 伙伴" [ref=f1e131] [cursor=pointer]:
+            - generic [ref=f1e132]: "1"
+            - generic [ref=f1e133]: 伙伴
+          - button "忆 结束" [ref=f1e134] [cursor=pointer]:
+            - generic [ref=f1e135]: 忆
+            - generic [ref=f1e136]: 结束

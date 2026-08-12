@@ -1,0 +1,42 @@
+- main [ref=e3]:
+  - status [ref=e4]: 奇遇启程 · 长隆奇遇伴侣
+  - main [ref=e5]:
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - button "返回上一步" [ref=e72] [cursor=pointer]: ←
+        - generic [ref=e73]:
+          - img "团团" [ref=e75]
+          - generic [ref=e76]:
+            - strong [ref=e77]: 团团
+            - generic [ref=e78]: ● 营业中
+        - button "重选" [ref=e79] [cursor=pointer]
+      - generic [ref=e80]: 1/7
+      - button "团团，点击互动，按住可拖动到聊天框另一侧" [ref=e84]:
+        - generic: 营业中
+        - generic [ref=e86]:
+          - img "团团扒在聊天框侧边"
+          - img "团团被轻轻揪住衣领悬空"
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e89]: 团
+          - paragraph [ref=e91]: 你好呀，我是团团。把同行伙伴和最想见的动物告诉我，我会慢慢帮你排好这一天。
+        - generic [ref=e92]:
+          - generic [ref=e93]: 团
+          - paragraph [ref=e95]: 先认识一下同行伙伴：这次是谁一起出发？
+      - generic [ref=e97]:
+        - generic [ref=e99]:
+          - button "亲子家庭 成人与儿童同行" [ref=e100] [cursor=pointer]:
+            - strong [ref=e101]: 亲子家庭
+            - generic [ref=e102]: 成人与儿童同行
+          - button "情侣出游 默认2名成人" [ref=e103] [cursor=pointer]:
+            - strong [ref=e104]: 情侣出游
+            - generic [ref=e105]: 默认2名成人
+          - button "朋友结伴 多人共同出发" [ref=e106] [cursor=pointer]:
+            - strong [ref=e107]: 朋友结伴
+            - generic [ref=e108]: 多人共同出发
+          - button "独自出游 一个人的自由路线" [ref=e109] [cursor=pointer]:
+            - strong [ref=e110]: 独自出游
+            - generic [ref=e111]: 一个人的自由路线
+        - generic [ref=e112]:
+          - button "跳过" [ref=e113] [cursor=pointer]
+          - button "发送给伙伴" [ref=e114] [cursor=pointer]

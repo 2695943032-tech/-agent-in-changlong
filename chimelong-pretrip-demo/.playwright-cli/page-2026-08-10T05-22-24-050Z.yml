@@ -1,0 +1,65 @@
+- main [ref=e3]:
+  - main [ref=e4]:
+    - generic [ref=e5]:
+      - navigation "全周期旅程导航" [ref=e6]:
+        - link "返回全周期首页" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - text: ←
+        - generic [ref=e8]:
+          - generic [ref=e9]: CHIMELONG JOURNEY
+          - strong [ref=e10]: 01 · 奇遇启程
+        - link "全旅程" [ref=e11] [cursor=pointer]:
+          - /url: /
+      - generic [ref=e12]:
+        - text: 长隆空间智能动物 Agent
+        - heading [level=1] [ref=e13]:
+          - text: 先选一位
+          - emphasis [ref=e14]: 陪你聊天的动物伙伴
+        - generic [ref=e15]: 9条地图距离已写入路线知识库
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - text: STEP 01
+          - heading "今天想和谁一起出发？" [level=2] [ref=e19]
+        - generic [ref=e20]:
+          - button "团团，大熊猫伙伴 温柔耐心的亲子科普官 团团 你好呀，我是团团。把同行伙伴和最想见的动物告诉我，我会慢慢帮你排好这一天。" [ref=e21] [cursor=pointer]:
+            - img "团团，大熊猫伙伴" [ref=e23]
+            - generic [ref=e24]:
+              - generic [ref=e25]: 温柔耐心的亲子科普官
+              - strong [ref=e26]: 团团
+              - generic [ref=e27]: 你好呀，我是团团。把同行伙伴和最想见的动物告诉我，我会慢慢帮你排好这一天。
+            - generic [ref=e28]: →
+          - button "凯凯，白虎伙伴 行动果断的错峰探险队长 凯凯 我是凯凯。告诉我谁一起出发，我们用更少折返换更多动物奇遇。" [ref=e29] [cursor=pointer]:
+            - img "凯凯，白虎伙伴" [ref=e31]
+            - generic [ref=e32]:
+              - generic [ref=e33]: 行动果断的错峰探险队长
+              - strong [ref=e34]: 凯凯
+              - generic [ref=e35]: 我是凯凯。告诉我谁一起出发，我们用更少折返换更多动物奇遇。
+            - generic [ref=e36]: →
+          - button "悠米，考拉伙伴 松弛细心的休闲路线管家 悠米 嗨，我是悠米。舒服地玩也能看见精彩，我们一起把节奏调到刚刚好。" [ref=e37] [cursor=pointer]:
+            - img "悠米，考拉伙伴" [ref=e39]
+            - generic [ref=e40]:
+              - generic [ref=e41]: 松弛细心的休闲路线管家
+              - strong [ref=e42]: 悠米
+              - generic [ref=e43]: 嗨，我是悠米。舒服地玩也能看见精彩，我们一起把节奏调到刚刚好。
+            - generic [ref=e44]: →
+          - button "澜澜，大象伙伴 稳稳守护大家的安全向导 澜澜 嗨，我是澜澜。把今天同行的小伙伴交给我，我们稳稳地开启这场大象级冒险！" [ref=e45] [cursor=pointer]:
+            - img "澜澜，大象伙伴" [ref=e47]
+            - generic [ref=e48]:
+              - generic [ref=e49]: 稳稳守护大家的安全向导
+              - strong [ref=e50]: 澜澜
+              - generic [ref=e51]: 嗨，我是澜澜。把今天同行的小伙伴交给我，我们稳稳地开启这场大象级冒险！
+            - generic [ref=e52]: →
+          - button "长乐，长颈鹿伙伴 视野开阔的观察与拍照达人 长乐 我是长乐！站得高看得远，路线、风景和精彩瞬间都逃不过我的眼睛。" [ref=e53] [cursor=pointer]:
+            - img "长乐，长颈鹿伙伴" [ref=e55]
+            - generic [ref=e56]:
+              - generic [ref=e57]: 视野开阔的观察与拍照达人
+              - strong [ref=e58]: 长乐
+              - generic [ref=e59]: 我是长乐！站得高看得远，路线、风景和精彩瞬间都逃不过我的眼睛。
+            - generic [ref=e60]: →
+          - button "阿悟，猩猩伙伴 脑洞满格的科普闯关玩家 阿悟 嘿，我是阿悟！准备好了吗？我们把每个知识点都变成一场好玩的挑战。" [ref=e61] [cursor=pointer]:
+            - img "阿悟，猩猩伙伴" [ref=e63]
+            - generic [ref=e64]:
+              - generic [ref=e65]: 脑洞满格的科普闯关玩家
+              - strong [ref=e66]: 阿悟
+              - generic [ref=e67]: 嘿，我是阿悟！准备好了吗？我们把每个知识点都变成一场好玩的挑战。
+            - generic [ref=e68]: →

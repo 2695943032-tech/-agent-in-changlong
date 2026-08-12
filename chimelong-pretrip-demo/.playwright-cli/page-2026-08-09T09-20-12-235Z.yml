@@ -1,0 +1,90 @@
+- main [ref=e3]:
+  - status [ref=e4]: 奇遇启程 · 长隆奇遇伴侣
+  - main [ref=e5]:
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - button "返回上一步" [ref=e72] [cursor=pointer]: ←
+        - generic [ref=e73]:
+          - img "团团" [ref=e75]
+          - generic [ref=e76]:
+            - strong [ref=e77]: 团团
+            - generic [ref=e78]: ● 睡觉中
+        - button "重选" [ref=e79] [cursor=pointer]
+      - generic [ref=e80]: 5/7
+      - button "团团，点击互动，按住可拖动到聊天框另一侧" [ref=e84]:
+        - generic: 睡觉中
+        - generic [ref=e86]:
+          - img "团团扒在聊天框侧边"
+          - img "团团被轻轻揪住衣领悬空"
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e89]: 团
+          - paragraph [ref=e91]: 你好呀，我是团团。把同行伙伴和最想见的动物告诉我，我会慢慢帮你排好这一天。
+        - generic [ref=e92]:
+          - generic [ref=e93]: 团
+          - paragraph [ref=e95]: 先认识一下同行伙伴：这次是谁一起出发？
+        - paragraph [ref=e148]: 亲子家庭，2位成人、1位儿童（儿童1）
+        - generic [ref=e149]:
+          - generic [ref=e150]: 团
+          - generic [ref=e151]:
+            - paragraph [ref=e152]: 欢迎来到长隆！亲子家庭游最温馨啦，我会陪你们一起认识可爱的动物朋友，玩得开心哦！
+            - generic [ref=e153]: DeepSeek生成
+        - generic [ref=e154]:
+          - generic [ref=e155]: 团
+          - paragraph [ref=e157]: 你们想用什么节奏逛动物园？我会结合人数给出推荐。
+        - paragraph [ref=e174]: 悠享慢游
+        - generic [ref=e175]:
+          - generic [ref=e176]: 团
+          - generic [ref=e177]:
+            - paragraph [ref=e178]: 带着宝贝慢慢逛最舒服啦，长隆的动物们都在等着你们一家三口来打招呼呢！
+            - generic [ref=e179]: DeepSeek生成
+        - generic [ref=e180]:
+          - generic [ref=e181]: 团
+          - paragraph [ref=e183]: 预计几点入园、几点离园？时间会决定能保留多少高优先级点位。
+        - paragraph [ref=e199]: 10:00—22:00
+        - generic [ref=e200]:
+          - generic [ref=e201]: 团
+          - generic [ref=e202]:
+            - paragraph [ref=e203]: 团团看到啦，你们一家三口慢悠悠玩到晚上十点，时间很充裕呢，可以好好享受亲子时光哦！
+            - generic [ref=e204]: DeepSeek生成
+        - generic [ref=e205]:
+          - generic [ref=e206]: 团
+          - paragraph [ref=e208]: 依次点击最想看的动物，数字1—6代表优先保留级别。
+        - paragraph [ref=e238]: 1.熊猫村，2.长颈鹿
+        - generic [ref=e239]:
+          - generic [ref=e240]: 团
+          - generic [ref=e241]:
+            - paragraph [ref=e242]: 熊猫村和长颈鹿都是孩子们的最爱呢，慢慢逛正好，祝你们一家玩得开心！
+            - generic [ref=e243]: DeepSeek生成
+        - generic [ref=e244]:
+          - generic [ref=e245]: 团
+          - paragraph [ref=e247]: 需要在园内用餐吗？我会结合路线标出更顺路的选择。
+      - generic [ref=e97]:
+        - generic [ref=e248]:
+          - generic [ref=e249]:
+            - button "需要园内用餐" [active] [ref=e250] [cursor=pointer]
+            - button "这次不安排" [ref=e251] [cursor=pointer]
+          - generic [ref=e252]:
+            - button "食 考拉食街 轻食餐饮 POI 数据标注的考拉主题餐饮点。" [ref=e253] [cursor=pointer]:
+              - generic [ref=e254]: 食
+              - generic [ref=e255]:
+                - strong [ref=e257]: 考拉食街
+                - generic [ref=e258]: 轻食餐饮
+                - generic [ref=e259]: POI 数据标注的考拉主题餐饮点。
+            - button "食 飞禽餐厅 Agent推荐 · 更顺路 园区餐饮 POI 数据标注的飞禽主题餐饮点。" [ref=e261] [cursor=pointer]:
+              - generic [ref=e262]: 食
+              - generic [ref=e263]:
+                - generic [ref=e264]:
+                  - strong [ref=e265]: 飞禽餐厅
+                  - emphasis [ref=e266]: Agent推荐 · 更顺路
+                - generic [ref=e267]: 园区餐饮
+                - generic [ref=e268]: POI 数据标注的飞禽主题餐饮点。
+            - button "中 熊猫餐厅 典型中餐 位于熊猫主题区域，适合围绕熊猫园灵活安排用餐。" [pressed] [ref=e270] [cursor=pointer]:
+              - generic [ref=e271]: 中
+              - generic [ref=e272]:
+                - strong [ref=e274]: 熊猫餐厅
+                - generic [ref=e275]: 典型中餐
+                - generic [ref=e276]: 位于熊猫主题区域，适合围绕熊猫园灵活安排用餐。
+        - generic [ref=e112]:
+          - button "跳过" [ref=e113] [cursor=pointer]
+          - button "发送给伙伴" [ref=e114] [cursor=pointer]

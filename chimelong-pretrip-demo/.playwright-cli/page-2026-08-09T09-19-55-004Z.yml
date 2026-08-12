@@ -1,0 +1,81 @@
+- main [ref=e3]:
+  - status [ref=e4]: 奇遇启程 · 长隆奇遇伴侣
+  - main [ref=e5]:
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - button "返回上一步" [ref=e72] [cursor=pointer]: ←
+        - generic [ref=e73]:
+          - img "团团" [ref=e75]
+          - generic [ref=e76]:
+            - strong [ref=e77]: 团团
+            - generic [ref=e78]: ● 营业中
+        - button "重选" [ref=e79] [cursor=pointer]
+      - generic [ref=e80]: 4/7
+      - button "团团，点击互动，按住可拖动到聊天框另一侧" [ref=e84]:
+        - generic: 营业中
+        - generic [ref=e86]:
+          - img "团团扒在聊天框侧边"
+          - img "团团被轻轻揪住衣领悬空"
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e89]: 团
+          - paragraph [ref=e91]: 你好呀，我是团团。把同行伙伴和最想见的动物告诉我，我会慢慢帮你排好这一天。
+        - generic [ref=e92]:
+          - generic [ref=e93]: 团
+          - paragraph [ref=e95]: 先认识一下同行伙伴：这次是谁一起出发？
+        - paragraph [ref=e148]: 亲子家庭，2位成人、1位儿童（儿童1）
+        - generic [ref=e149]:
+          - generic [ref=e150]: 团
+          - generic [ref=e151]:
+            - paragraph [ref=e152]: 欢迎来到长隆！亲子家庭游最温馨啦，我会陪你们一起认识可爱的动物朋友，玩得开心哦！
+            - generic [ref=e153]: DeepSeek生成
+        - generic [ref=e154]:
+          - generic [ref=e155]: 团
+          - paragraph [ref=e157]: 你们想用什么节奏逛动物园？我会结合人数给出推荐。
+        - paragraph [ref=e174]: 悠享慢游
+        - generic [ref=e175]:
+          - generic [ref=e176]: 团
+          - generic [ref=e177]:
+            - paragraph [ref=e178]: 带着宝贝慢慢逛最舒服啦，长隆的动物们都在等着你们一家三口来打招呼呢！
+            - generic [ref=e179]: DeepSeek生成
+        - generic [ref=e180]:
+          - generic [ref=e181]: 团
+          - paragraph [ref=e183]: 预计几点入园、几点离园？时间会决定能保留多少高优先级点位。
+        - paragraph [ref=e199]: 10:00—22:00
+        - generic [ref=e200]:
+          - generic [ref=e201]: 团
+          - generic [ref=e202]:
+            - paragraph [ref=e203]: 团团看到啦，你们一家三口慢悠悠玩到晚上十点，时间很充裕呢，可以好好享受亲子时光哦！
+            - generic [ref=e204]: DeepSeek生成
+        - generic [ref=e205]:
+          - generic [ref=e206]: 团
+          - paragraph [ref=e208]: 依次点击最想看的动物，数字1—6代表优先保留级别。
+      - generic [ref=e97]:
+        - generic [ref=e209]:
+          - generic [ref=e210]:
+            - strong [ref=e211]: 点击顺序就是优先级
+            - generic [ref=e212]: 排序决定时间不足时先保留谁，不等于实际游览先后。
+          - generic [ref=e213]:
+            - button "1 熊猫村 核心国宝展区，适合亲子科普与主题合影。" [pressed] [ref=e232] [cursor=pointer]:
+              - generic [ref=e233]: "1"
+              - strong [ref=e215]: 熊猫村
+              - generic [ref=e216]: 核心国宝展区，适合亲子科普与主题合影。
+            - button "2 长颈鹿 互动型展区，适合观察取食行为。" [active] [pressed] [ref=e234] [cursor=pointer]:
+              - generic [ref=e235]: "2"
+              - strong [ref=e218]: 长颈鹿
+              - generic [ref=e219]: 互动型展区，适合观察取食行为。
+            - button "黑猩猩馆 观察灵长类动物行为，适合自然科普。" [ref=e220] [cursor=pointer]:
+              - strong [ref=e221]: 黑猩猩馆
+              - generic [ref=e222]: 观察灵长类动物行为，适合自然科普。
+            - button "虎园 观察白虎活动，是园区猛兽主题重点展区。" [ref=e223] [cursor=pointer]:
+              - strong [ref=e224]: 虎园
+              - generic [ref=e225]: 观察白虎活动，是园区猛兽主题重点展区。
+            - button "亚洲象园 家庭友好的大型动物展区，可观察象群互动。" [ref=e226] [cursor=pointer]:
+              - strong [ref=e227]: 亚洲象园
+              - generic [ref=e228]: 家庭友好的大型动物展区，可观察象群互动。
+            - button "考拉 适合观察考拉慢生活习性与桉叶取食。" [ref=e229] [cursor=pointer]:
+              - strong [ref=e230]: 考拉
+              - generic [ref=e231]: 适合观察考拉慢生活习性与桉叶取食。
+        - generic [ref=e112]:
+          - button "跳过" [ref=e113] [cursor=pointer]
+          - button "发送给伙伴" [ref=e114] [cursor=pointer]
