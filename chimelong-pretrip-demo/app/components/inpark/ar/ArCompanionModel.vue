@@ -88,6 +88,16 @@ async function loadDetailedPanda() {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true
       child.receiveShadow = true
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      for (const item of materials) {
+        if (item instanceof THREE.MeshStandardMaterial) {
+          item.roughness = Math.min(item.roughness, .62)
+          item.envMapIntensity = 1.15
+          item.emissive.copy(item.color).multiplyScalar(.055)
+          if (item.map) item.map.colorSpace = THREE.SRGBColorSpace
+          item.needsUpdate = true
+        }
+      }
     }
   })
   return group
@@ -113,7 +123,11 @@ async function mountScene() {
   const camera = new THREE.PerspectiveCamera(31, 1, .1, 100); camera.position.set(0, .75, 6.4)
   renderer = new THREE.WebGLRenderer({ canvas: canvas.value, alpha: true, antialias: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false); renderer.shadowMap.enabled = true
-  scene.add(new THREE.HemisphereLight('#fff6d8', '#183329', 2.4)); const key = new THREE.DirectionalLight('#fff2cf', 3.2); key.position.set(3, 5, 4); scene.add(key)
+  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.48
+  scene.add(new THREE.HemisphereLight('#fff8e8', '#456b61', 3.5))
+  const key = new THREE.DirectionalLight('#fff1ce', 5.2); key.position.set(3.4, 5.5, 4.5); key.castShadow = true; scene.add(key)
+  const fill = new THREE.DirectionalLight('#d9efff', 2.6); fill.position.set(-4, 2.8, 3); scene.add(fill)
+  const rim = new THREE.DirectionalLight(props.accent, 3.1); rim.position.set(1.5, 3, -4); scene.add(rim)
   let model = buildCompanion(props.companionId); scene.add(model)
   if (props.companionId === 'panda') {
     try {
@@ -125,14 +139,26 @@ async function mountScene() {
       console.warn('Detailed panda model failed to load; using stable fallback.', error)
     }
   }
-  const halo = new THREE.Mesh(new THREE.TorusGeometry(1.15, .018, 8, 64), new THREE.MeshBasicMaterial({ color: props.accent, transparent: true, opacity: .48 })); halo.rotation.x = Math.PI / 2; halo.position.y = -.75; scene.add(halo)
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(.92, 48), new THREE.MeshBasicMaterial({ color: '#071712', transparent: true, opacity: .28, depthWrite: false })); shadow.scale.set(1.35, .42, 1); shadow.rotation.x = -Math.PI / 2; shadow.position.set(0, -.78, .08); scene.add(shadow)
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(1.04, .012, 8, 64), new THREE.MeshBasicMaterial({ color: props.accent, transparent: true, opacity: .34 })); halo.rotation.x = Math.PI / 2; halo.position.y = -.76; scene.add(halo)
   const clock = new THREE.Clock()
   const animate = () => {
-    const t = clock.getElapsedTime(); const baseY = model.userData.baseY ?? (props.companionId === 'giraffe' ? -.45 : -.25); model.position.y += (Math.sin(t * 1.7) * .018 - (model.position.y - baseY)) * .08; model.rotation.y = Math.sin(t * .65) * .12
+    const t = clock.getElapsedTime(); const baseY = model.userData.baseY ?? (props.companionId === 'giraffe' ? -.45 : -.25)
+    const actionEnergy = props.action === 'wave' ? 1 : props.action === 'talk' ? .7 : .28
+    const targetY = baseY + Math.sin(t * 1.55) * (.012 + actionEnergy * .012) + Math.max(0, Math.sin(t * 3.1)) * actionEnergy * .008
+    model.position.y += (targetY - model.position.y) * .075
+    model.rotation.y = Math.sin(t * .48) * .075 + (props.action === 'wave' ? Math.sin(t * 1.4) * .045 : 0)
+    model.rotation.z = Math.sin(t * .82) * (.008 + actionEnergy * .009)
+    model.rotation.x = Math.sin(t * .62 + .8) * .008
     const arm = model.userData.waveArm as THREE.Mesh | null
-    if (arm) arm.rotation.z = (props.action === 'wave' ? .8 + Math.sin(t * 7) * .35 : props.action === 'talk' ? .34 + Math.sin(t * 5) * .12 : .24)
-    model.scale.y = (model.userData.baseScaleY ?? (props.companionId === 'giraffe' ? .72 : .82)) * (props.action === 'talk' ? 1 + Math.sin(t * 8) * .012 : 1)
-    halo.rotation.z = t * .22; renderer?.render(scene, camera); frameId = requestAnimationFrame(animate)
+    if (arm) arm.rotation.z = (props.action === 'wave' ? .72 + Math.sin(t * 5.4) * .42 : props.action === 'talk' ? .34 + Math.sin(t * 3.8) * .1 : .24)
+    const baseScale = model.userData.baseScaleY ?? (props.companionId === 'giraffe' ? .72 : .82)
+    const breath = 1 + Math.sin(t * 1.55) * .006
+    const talkPulse = props.action === 'talk' ? Math.sin(t * 5.2) * .006 : 0
+    model.scale.set(baseScale * (1 - talkPulse * .32), baseScale * (breath + talkPulse), baseScale * (1 - talkPulse * .32))
+    halo.rotation.z = t * .14; halo.material.opacity = .28 + Math.sin(t * 1.25) * .06
+    shadow.material.opacity = .25 - Math.sin(t * 1.55) * .025
+    renderer?.render(scene, camera); frameId = requestAnimationFrame(animate)
   }
   animate()
 }

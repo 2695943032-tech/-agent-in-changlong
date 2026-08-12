@@ -20,6 +20,7 @@ const chatError = shallowRef('')
 const sessionId = useState('park-chat-session-v1', () => `park-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`)
 let scanTimer: ReturnType<typeof setTimeout> | undefined
 let toastTimer: ReturnType<typeof setTimeout> | undefined
+let storyTimer: ReturnType<typeof setTimeout> | undefined
 
 const activeCompanion = computed(() => {
   const id = park.state.value.activeCompanionId ?? park.state.value.starterCompanionId ?? 'panda'
@@ -47,6 +48,8 @@ function scan() {
     scanning.value = false
     detected.value = true
     storyOpen.value = true
+    if (storyTimer) clearTimeout(storyTimer)
+    storyTimer = setTimeout(() => { storyOpen.value = false }, 5600)
     if (!chatMessages.value.length) {
       chatMessages.value.push({ id: `${Date.now()}-ar-greeting`, role: 'assistant', text: script.value.greeting, mode: 'template' })
     }
@@ -54,6 +57,7 @@ function scan() {
 }
 
 function openChat() {
+  if (storyTimer) clearTimeout(storyTimer)
   storyOpen.value = false
   chatOpen.value = true
 }
@@ -99,6 +103,7 @@ onMounted(() => camera.start())
 onBeforeUnmount(() => {
   if (scanTimer) clearTimeout(scanTimer)
   if (toastTimer) clearTimeout(toastTimer)
+  if (storyTimer) clearTimeout(storyTimer)
 })
 </script>
 
