@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CompanionId } from '../../../../shared/types/pretrip'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const props = defineProps<{ companionId: CompanionId, action: 'idle' | 'wave' | 'talk', accent: string }>()
 const canvas = useTemplateRef<HTMLCanvasElement>('modelCanvas')
@@ -66,24 +67,71 @@ function buildCompanion(id: CompanionId) {
   group.userData.waveArm = arm
   group.scale.setScalar(id === 'giraffe' ? .72 : .82)
   group.position.y = id === 'giraffe' ? -.45 : -.25
+  group.userData.baseScaleY = group.scale.y
   return group
 }
 
-function mountScene() {
+async function loadDetailedPanda() {
+  const gltf = await new GLTFLoader().loadAsync('/models/companions/panda-tuantuan-ar-v1.glb')
+  const group = gltf.scene
+  group.updateMatrixWorld(true)
+  const initialBox = new THREE.Box3().setFromObject(group)
+  const scale = 2.25 / Math.max(initialBox.getSize(new THREE.Vector3()).y, .001)
+  group.scale.setScalar(scale)
+  group.userData.baseScaleY = scale
+  group.updateMatrixWorld(true)
+  const box = new THREE.Box3().setFromObject(group)
+  const center = box.getCenter(new THREE.Vector3())
+  group.position.set(-center.x, -.82 - box.min.y, -center.z)
+  group.userData.baseY = group.position.y
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true
+      child.receiveShadow = true
+    }
+  })
+  return group
+}
+
+function disposeGroup(group: THREE.Group) {
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return
+    child.geometry.dispose()
+    const materials = Array.isArray(child.material) ? child.material : [child.material]
+    for (const item of materials) {
+      for (const value of Object.values(item)) {
+        if (value instanceof THREE.Texture) value.dispose()
+      }
+      item.dispose()
+    }
+  })
+}
+
+async function mountScene() {
   if (!canvas.value) return
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(31, 1, .1, 100); camera.position.set(0, .75, 6.4)
   renderer = new THREE.WebGLRenderer({ canvas: canvas.value, alpha: true, antialias: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false); renderer.shadowMap.enabled = true
   scene.add(new THREE.HemisphereLight('#fff6d8', '#183329', 2.4)); const key = new THREE.DirectionalLight('#fff2cf', 3.2); key.position.set(3, 5, 4); scene.add(key)
-  const model = buildCompanion(props.companionId); scene.add(model)
+  let model = buildCompanion(props.companionId); scene.add(model)
+  if (props.companionId === 'panda') {
+    try {
+      const detailedModel = await loadDetailedPanda()
+      scene.remove(model); disposeGroup(model)
+      model = detailedModel; scene.add(model)
+    }
+    catch (error) {
+      console.warn('Detailed panda model failed to load; using stable fallback.', error)
+    }
+  }
   const halo = new THREE.Mesh(new THREE.TorusGeometry(1.15, .018, 8, 64), new THREE.MeshBasicMaterial({ color: props.accent, transparent: true, opacity: .48 })); halo.rotation.x = Math.PI / 2; halo.position.y = -.75; scene.add(halo)
   const clock = new THREE.Clock()
   const animate = () => {
-    const t = clock.getElapsedTime(); model.position.y += (Math.sin(t * 1.7) * .018 - (model.position.y - (props.companionId === 'giraffe' ? -.45 : -.25))) * .08; model.rotation.y = Math.sin(t * .65) * .12
+    const t = clock.getElapsedTime(); const baseY = model.userData.baseY ?? (props.companionId === 'giraffe' ? -.45 : -.25); model.position.y += (Math.sin(t * 1.7) * .018 - (model.position.y - baseY)) * .08; model.rotation.y = Math.sin(t * .65) * .12
     const arm = model.userData.waveArm as THREE.Mesh | null
     if (arm) arm.rotation.z = (props.action === 'wave' ? .8 + Math.sin(t * 7) * .35 : props.action === 'talk' ? .34 + Math.sin(t * 5) * .12 : .24)
-    model.scale.y = (props.companionId === 'giraffe' ? .72 : .82) * (props.action === 'talk' ? 1 + Math.sin(t * 8) * .012 : 1)
+    model.scale.y = (model.userData.baseScaleY ?? (props.companionId === 'giraffe' ? .72 : .82)) * (props.action === 'talk' ? 1 + Math.sin(t * 8) * .012 : 1)
     halo.rotation.z = t * .22; renderer?.render(scene, camera); frameId = requestAnimationFrame(animate)
   }
   animate()

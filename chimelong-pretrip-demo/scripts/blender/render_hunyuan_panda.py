@@ -8,17 +8,22 @@ from mathutils import Vector
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MODEL = os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-base-v1.glb")
-OUTPUT = os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png")
+MODEL = os.environ.get("PANDA_MODEL", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-base-v1.glb"))
+OUTPUT = os.environ.get("PANDA_RENDER", os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png"))
+BLEND_OUTPUT = os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "panda-hunyuan-base-v1.blend"))
 
 
-def material(name, color, roughness=0.72):
+def material(name, color, roughness=0.72, color_attribute=None):
     mat = bpy.data.materials.new(name)
     mat.diffuse_color = (*color, 1.0)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
     bsdf.inputs["Base Color"].default_value = (*color, 1.0)
     bsdf.inputs["Roughness"].default_value = roughness
+    if color_attribute:
+        vertex_color = mat.node_tree.nodes.new("ShaderNodeVertexColor")
+        vertex_color.layer_name = color_attribute
+        mat.node_tree.links.new(vertex_color.outputs["Color"], bsdf.inputs["Base Color"])
     return mat
 
 
@@ -34,8 +39,10 @@ for obj in meshes:
     bpy.context.view_layer.objects.active = obj
     obj.select_set(True)
     bpy.ops.object.shade_smooth_by_angle()
-    obj.data.materials.clear()
-    obj.data.materials.append(material("Warm ivory clay", (0.74, 0.69, 0.60)))
+    color_name = obj.data.color_attributes[0].name if obj.data.color_attributes else None
+    if color_name or not obj.data.materials:
+        obj.data.materials.clear()
+        obj.data.materials.append(material("Companion material", (0.74, 0.69, 0.60), color_attribute=color_name))
 
 # Center the generated character on the floor after axis correction.
 bpy.context.view_layer.update()
@@ -88,6 +95,6 @@ scene.render.film_transparent = False
 scene.render.image_settings.color_mode = "RGBA"
 scene.view_settings.look = "AgX - Medium High Contrast"
 scene.render.resolution_percentage = 100
-bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ROOT, "art", "companions", "panda", "panda-hunyuan-base-v1.blend"))
+bpy.ops.wm.save_as_mainfile(filepath=BLEND_OUTPUT)
 bpy.ops.render.render(write_still=True)
 print(f"Rendered {OUTPUT}")
