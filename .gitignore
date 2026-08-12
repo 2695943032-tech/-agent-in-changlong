@@ -21,6 +21,7 @@
 /chimelong-pretrip-demo-dependency-backup-20260717.codex-old-broken-links/
 node_modules/
 .pnpm-store/
+.tools/
 
 # Generated and rendered output
 /output/
