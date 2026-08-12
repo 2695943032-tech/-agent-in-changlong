@@ -354,9 +354,14 @@ function generatePlan() {
 }
 
 .answer-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
   display: grid;
   grid-template-columns: 92px 1fr;
   gap: 8px;
+  padding: 10px 0 2px;
+  background: linear-gradient(to bottom, rgba(251, 250, 245, 0), rgba(251, 250, 245, .98) 30%);
 }
 
 .skip-action {

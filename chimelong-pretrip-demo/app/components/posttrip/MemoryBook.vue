@@ -4,9 +4,10 @@ import type { JourneyRecord } from '../../../shared/types/journey'
 import { buildJourneyTicket } from '../../utils/journeyRecord'
 import JourneyMediaThumb from '../journey-ticket/JourneyMediaThumb.vue'
 import JourneyTicketPreview from '../journey-ticket/JourneyTicketPreview.vue'
-import ParkVectorMap from '../map/ParkVectorMap.vue'
+import ParkRasterMap from '../map/ParkRasterMap.vue'
 import JourneyEventTimeline from './JourneyEventTimeline.vue'
 import JourneyMemoryReel from './JourneyMemoryReel.vue'
+import { zoneExperienceConfigs } from '#shared/data/zoneExperience'
 
 type MemoryTab = 'route' | 'events' | 'recap' | 'badges' | 'photos' | 'reel' | 'ticket'
 
@@ -63,7 +64,7 @@ const companionSummary = computed(() => {
 <template>
   <main class="memory-book" :style="{ '--memory-accent': companion.accent }">
     <header class="memory-nav">
-      <button type="button" aria-label="返回首页" @click="navigateTo('/')">←</button>
+      <button type="button" aria-label="返回我的页面" @click="navigateTo('/me')">←</button>
       <div>
         <span>03 · JOURNEY MEMORY</span>
         <strong>回忆星册</strong>
@@ -119,11 +120,14 @@ const companionSummary = computed(() => {
               <h2>计划是一条线，奇遇是走出来的路</h2>
             </header>
             <div class="route-map">
-              <ParkVectorMap
+              <ParkRasterMap
                 :animals="catalog.animals"
                 :route-zone-ids="journey.planSnapshot.zoneIds"
                 :actual-route-zone-ids="journey.actualJourney.visitedZoneIds"
                 :completed-zone-ids="journey.actualJourney.visitedZoneIds"
+                :initial-zoom="1.5"
+                :min-zoom="1.5"
+                :initial-pan-x-percent="2"
               />
             </div>
             <div class="route-legend">
@@ -160,8 +164,8 @@ const companionSummary = computed(() => {
             <div>
               <article v-for="zoneId in journey.actualJourney.badgeZoneIds" :key="zoneId">
                 <i>✦</i>
-                <strong>{{ catalog.animals.find(item => item.id === zoneId)?.name }}</strong>
-                <span>奇遇徽章</span>
+                <strong>{{ zoneExperienceConfigs[zoneId].badgeName }}</strong>
+                <span>{{ catalog.animals.find(item => item.id === zoneId)?.name }} · 已解锁</span>
               </article>
               <article v-if="!journey.actualJourney.badgeZoneIds.length" class="empty-badge">
                 <i>◇</i>
@@ -270,7 +274,7 @@ const companionSummary = computed(() => {
 .companion-recap h2 { font-size: 17px; }
 .companion-recap p { margin: 10px 0 0; color: #dfb85f; font-size: 9px; line-height: 1.6; }
 .badge-grid { display: grid; grid-template-rows: auto minmax(0,1fr); gap: 12px; }
-.badge-grid > div { display: grid; grid-template-columns: repeat(2,1fr); min-height: 0; gap: 8px; }
+.badge-grid > div { display: grid; grid-template-columns: repeat(2,1fr); min-height: 0; overflow-y: auto; gap: 8px; scrollbar-width: none; }.badge-grid > div::-webkit-scrollbar { display: none; }
 .badge-grid article { display: grid; min-height: 0; padding: 12px; align-content: end; border-radius: 15px 5px 15px 5px; background: #f9f4e9; }
 .badge-grid article:nth-child(even) { background: #e2ebdf; }
 .badge-grid i { display: grid; width: 32px; height: 32px; margin-bottom: 10px; place-items: center; border: 1px solid #a85c43; border-radius: 50%; color: #a85c43; font-style: normal; }

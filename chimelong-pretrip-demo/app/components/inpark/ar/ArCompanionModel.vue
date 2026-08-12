@@ -1,0 +1,100 @@
+<script setup lang="ts">
+import type { CompanionId } from '../../../../shared/types/pretrip'
+import * as THREE from 'three'
+
+const props = defineProps<{ companionId: CompanionId, action: 'idle' | 'wave' | 'talk', accent: string }>()
+const canvas = useTemplateRef<HTMLCanvasElement>('modelCanvas')
+let renderer: THREE.WebGLRenderer | null = null
+let frameId = 0
+
+function material(color: THREE.ColorRepresentation) {
+  return new THREE.MeshStandardMaterial({ color, roughness: .72, metalness: .02 })
+}
+
+function sphere(group: THREE.Group, color: THREE.ColorRepresentation, scale: [number, number, number], position: [number, number, number]) {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), material(color))
+  mesh.scale.set(...scale); mesh.position.set(...position); mesh.castShadow = true; group.add(mesh)
+  return mesh
+}
+
+function cylinder(group: THREE.Group, color: THREE.ColorRepresentation, radius: number, length: number, position: [number, number, number], rotation: [number, number, number] = [0, 0, 0]) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * .9, length, 18), material(color))
+  mesh.position.set(...position); mesh.rotation.set(...rotation); mesh.castShadow = true; group.add(mesh)
+  return mesh
+}
+
+function buildFace(group: THREE.Group, y: number, eyeGap: number, eyeScale = 1) {
+  sphere(group, '#171b19', [.09 * eyeScale, .12 * eyeScale, .055], [-eyeGap, y, .72])
+  sphere(group, '#171b19', [.09 * eyeScale, .12 * eyeScale, .055], [eyeGap, y, .72])
+  sphere(group, '#fffdf5', [.025, .035, .018], [-eyeGap - .018, y + .025, .765])
+  sphere(group, '#fffdf5', [.025, .035, .018], [eyeGap - .018, y + .025, .765])
+}
+
+function buildCompanion(id: CompanionId) {
+  const group = new THREE.Group()
+  let arm: THREE.Mesh | null = null
+  if (id === 'panda') {
+    sphere(group, '#f2efe5', [.72, .86, .56], [0, .12, 0]); sphere(group, '#f5f1e8', [.62, .57, .52], [0, 1.05, .03])
+    sphere(group, '#202522', [.22, .24, .18], [-.45, 1.48, -.02]); sphere(group, '#202522', [.22, .24, .18], [.45, 1.48, -.02])
+    sphere(group, '#252a27', [.2, .25, .08], [-.23, 1.12, .48]); sphere(group, '#252a27', [.2, .25, .08], [.23, 1.12, .48]); buildFace(group, 1.15, .23, .7)
+    cylinder(group, '#252a27', .18, .82, [-.58, .18, .02], [0, 0, -.24]); arm = cylinder(group, '#252a27', .18, .82, [.58, .18, .02], [0, 0, .24])
+  }
+  else if (id === 'tiger') {
+    sphere(group, '#e68a2e', [.7, .9, .55], [0, .1, 0]); sphere(group, '#ec9639', [.6, .58, .5], [0, 1.08, .02]); sphere(group, '#f5dfbd', [.35, .25, .2], [0, .88, .48])
+    sphere(group, '#7c3f1f', [.2, .22, .14], [-.43, 1.48, 0]); sphere(group, '#7c3f1f', [.2, .22, .14], [.43, 1.48, 0]); buildFace(group, 1.17, .2)
+    for (const y of [-.35, .05, .42]) { cylinder(group, '#34231d', .035, 1.05, [0, y, .51], [0, 0, Math.PI / 2]) }
+    arm = cylinder(group, '#d97929', .17, .86, [.61, .18, 0], [0, 0, .28]); cylinder(group, '#d97929', .17, .86, [-.61, .18, 0], [0, 0, -.28])
+  }
+  else if (id === 'koala') {
+    sphere(group, '#91a39b', [.67, .84, .55], [0, .08, 0]); sphere(group, '#a8b7af', [.68, .62, .52], [0, 1.08, .02]); sphere(group, '#82968c', [.33, .35, .18], [-.54, 1.28, -.02]); sphere(group, '#82968c', [.33, .35, .18], [.54, 1.28, -.02])
+    sphere(group, '#313c37', [.14, .2, .12], [0, .96, .55]); buildFace(group, 1.2, .23)
+    arm = cylinder(group, '#879b91', .17, .84, [.6, .18, 0], [0, 0, .25]); cylinder(group, '#879b91', .17, .84, [-.6, .18, 0], [0, 0, -.25])
+  }
+  else if (id === 'elephant') {
+    sphere(group, '#7799a2', [.75, .88, .6], [0, .05, 0]); sphere(group, '#86a8b0', [.66, .58, .54], [0, 1.03, .04]); sphere(group, '#7698a2', [.4, .5, .12], [-.58, 1.08, 0]); sphere(group, '#7698a2', [.4, .5, .12], [.58, 1.08, 0]); buildFace(group, 1.18, .22)
+    cylinder(group, '#7e9fa8', .15, .9, [0, .55, .52], [.38, 0, 0]); arm = cylinder(group, '#6f929b', .18, .88, [.63, .14, 0], [0, 0, .24]); cylinder(group, '#6f929b', .18, .88, [-.63, .14, 0], [0, 0, -.24])
+  }
+  else if (id === 'giraffe') {
+    sphere(group, '#e3ad52', [.62, .72, .48], [0, -.15, 0]); cylinder(group, '#e5b259', .27, 1.25, [0, .75, 0]); sphere(group, '#e8b75f', [.48, .42, .46], [0, 1.5, .02]); sphere(group, '#a87535', [.15, .14, .12], [-.3, 1.83, 0]); sphere(group, '#a87535', [.15, .14, .12], [.3, 1.83, 0]); buildFace(group, 1.56, .18)
+    for (const [x, y] of [[-.3,.2],[.25,-.15],[-.16,.75],[.2,1.05]] as const) sphere(group, '#9d6930', [.15,.18,.05], [x,y,.48])
+    arm = cylinder(group, '#dca74f', .14, .82, [.54, -.12, 0], [0, 0, .2]); cylinder(group, '#dca74f', .14, .82, [-.54, -.12, 0], [0, 0, -.2])
+  }
+  else {
+    sphere(group, '#4b403b', [.78, .9, .58], [0, .08, 0]); sphere(group, '#51453f', [.62, .57, .5], [0, 1.08, .02]); sphere(group, '#8c7668', [.38, .28, .2], [0, .91, .46]); buildFace(group, 1.19, .2)
+    arm = cylinder(group, '#433a36', .22, 1.05, [.66, .12, 0], [0, 0, .3]); cylinder(group, '#433a36', .22, 1.05, [-.66, .12, 0], [0, 0, -.3])
+  }
+  group.userData.waveArm = arm
+  group.scale.setScalar(id === 'giraffe' ? .72 : .82)
+  group.position.y = id === 'giraffe' ? -.45 : -.25
+  return group
+}
+
+function mountScene() {
+  if (!canvas.value) return
+  const scene = new THREE.Scene()
+  const camera = new THREE.PerspectiveCamera(31, 1, .1, 100); camera.position.set(0, .75, 6.4)
+  renderer = new THREE.WebGLRenderer({ canvas: canvas.value, alpha: true, antialias: true, powerPreference: 'high-performance' })
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false); renderer.shadowMap.enabled = true
+  scene.add(new THREE.HemisphereLight('#fff6d8', '#183329', 2.4)); const key = new THREE.DirectionalLight('#fff2cf', 3.2); key.position.set(3, 5, 4); scene.add(key)
+  const model = buildCompanion(props.companionId); scene.add(model)
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(1.15, .018, 8, 64), new THREE.MeshBasicMaterial({ color: props.accent, transparent: true, opacity: .48 })); halo.rotation.x = Math.PI / 2; halo.position.y = -.75; scene.add(halo)
+  const clock = new THREE.Clock()
+  const animate = () => {
+    const t = clock.getElapsedTime(); model.position.y += (Math.sin(t * 1.7) * .018 - (model.position.y - (props.companionId === 'giraffe' ? -.45 : -.25))) * .08; model.rotation.y = Math.sin(t * .65) * .12
+    const arm = model.userData.waveArm as THREE.Mesh | null
+    if (arm) arm.rotation.z = (props.action === 'wave' ? .8 + Math.sin(t * 7) * .35 : props.action === 'talk' ? .34 + Math.sin(t * 5) * .12 : .24)
+    model.scale.y = (props.companionId === 'giraffe' ? .72 : .82) * (props.action === 'talk' ? 1 + Math.sin(t * 8) * .012 : 1)
+    halo.rotation.z = t * .22; renderer?.render(scene, camera); frameId = requestAnimationFrame(animate)
+  }
+  animate()
+}
+
+onMounted(mountScene)
+onBeforeUnmount(() => { cancelAnimationFrame(frameId); renderer?.dispose(); renderer = null })
+</script>
+
+<template><canvas ref="modelCanvas" class="companion-model" :aria-label="`${props.companionId} 3D 动物伙伴模型`" /></template>
+
+<style scoped>
+.companion-model{display:block;width:100%;height:100%;touch-action:none;filter:drop-shadow(0 24px 24px rgba(0,0,0,.28))}
+</style>

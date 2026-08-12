@@ -298,6 +298,7 @@ function finishJourney() {
 
           <nav class="park-bottom-nav" aria-label="园中功能">
             <button class="active" type="button" @click="mapOpen = true"><span>图</span><small>地图</small></button>
+            <button type="button" @click="navigateTo('/inpark/ar')"><span>AR</span><small>实景</small></button>
             <button type="button" @click="servicesOpen = true"><span>+</span><small>服务</small></button>
             <button type="button" @click="collectionOpen = true"><span>{{ tripState.unlockedCompanionIds.length }}</span><small>伙伴</small></button>
             <button type="button" @click="finishJourney"><span>忆</span><small>结束</small></button>

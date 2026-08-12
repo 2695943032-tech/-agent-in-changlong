@@ -15,12 +15,15 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "nuxt": "^4.4.8",
+    "three": "^0.185.1",
     "vue": "^3.5.39",
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "@types/three": "^0.185.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
     "vue-tsc": "^3.1.8"
