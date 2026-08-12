@@ -28,3 +28,15 @@ The shared companion skeleton is retained, with dedicated hand bones and a three
 - Eyes, facial markings, teeth, nose, and pixel accents remain clean to protect the close-up identity.
 - Material roughness variation is generated with Blender noise nodes. No image textures, normal-map baking, or displacement baking are required.
 - The high-poly master is intended for close renders and future source work. The existing mobile GLB remains the runtime asset.
+
+## Multiview reproduction v3
+
+- Turnaround: `art/companions/tiger/references/tiger-turnaround-v3.png` with equal-height FRONT / LEFT / BACK views.
+- Geometry source: Hunyuan3D-2mv, 50 inference steps, fp16, seed `12345`, octree resolution `320` on an RTX 5060 Laptop 8 GB GPU.
+- Unreduced base: `art/companions/tiger/wip/hunyuan/tiger-base-v3.glb` at 379,708 triangles.
+- Editable delivery: `art/companions/tiger/tiger-companion-hunyuan-v3.blend`.
+- Display delivery: `art/companions/tiger/wip/hunyuan/tiger-display-v3.glb` at 243,948 triangles.
+- Mobile runtime: `public/models/companions/tiger-companion-ar-v3.glb` at 83,948 triangles and approximately 6.32 MB.
+- The forehead mark, eyes, pupils, brows, cheek stripes, nose, and bag pixels are independent raised geometry.
+- Surface relief and color use Blender procedural geometry and solid material regions. There are no image texture nodes and no baked texture maps.
+- Exported GLBs are re-imported into Blender for final rendering, bounds, floor-contact, triangle-count, and image-dependency validation.
