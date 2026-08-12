@@ -11,9 +11,12 @@ from mathutils import Vector
 
 
 args = sys.argv[sys.argv.index("--") + 1:]
-if len(args) != 3:
-    raise SystemExit("Usage: blender -b --python script.py -- MODEL OUTPUT_DIR BLEND")
-model_path, output_dir, blend_path = map(Path, args)
+if len(args) != 5:
+    raise SystemExit(
+        "Usage: blender -b --python script.py -- MODEL OUTPUT_DIR BLEND CHARACTER VERSION"
+    )
+model_path, output_dir, blend_path = map(Path, args[:3])
+character, version = args[3:]
 output_dir.mkdir(parents=True, exist_ok=True)
 
 
@@ -96,7 +99,7 @@ views = {
 for name, location in views.items():
     camera.location = location
     point_at(camera, center)
-    scene.render.filepath = str(output_dir / f"tiger-clay-{name}-v3.png")
+    scene.render.filepath = str(output_dir / f"{character}-clay-{name}-v{version}.png")
     bpy.ops.render.render(write_still=True)
 
 bpy.ops.wm.save_as_mainfile(filepath=str(blend_path))

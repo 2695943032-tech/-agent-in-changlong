@@ -108,6 +108,8 @@ async function loadDetailedPanda() {
 
 const riggedModelPaths: Partial<Record<CompanionId, string>> = {
   tiger: '/models/companions/tiger-companion-ar-v3.glb?v=3',
+  elephant: '/models/companions/elephant-companion-ar-v1.glb?v=1',
+  gorilla: '/models/companions/gorilla-companion-ar-v1.glb?v=1',
   koala: '/models/companions/koala-companion-ar-v1.glb?v=1',
   giraffe: '/models/companions/giraffe-companion-ar-v1.glb?v=1',
 }
