@@ -17,6 +17,9 @@ logs
 .DS_Store
 .fleet
 .idea
+.tools/
+.tools-empty-old/
+*.blend1
 
 # Local env files
 .env
