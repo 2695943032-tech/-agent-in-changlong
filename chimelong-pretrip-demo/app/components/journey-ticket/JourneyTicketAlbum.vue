@@ -6,6 +6,9 @@ import JourneyTicketAlbumPreview from './JourneyTicketAlbumPreview.vue'
 
 defineProps<{ records: JourneyRecord[], catalog: CatalogResponse }>()
 const emit = defineEmits<{ delete: [journeyId: string] }>()
+const route = useRoute()
+const source = computed(() => route.query.from === 'chat' ? 'chat' : 'me')
+const returnTo = computed(() => source.value === 'chat' ? '/pretrip?tab=chat' : '/me')
 const pendingDelete = shallowRef<JourneyRecord | null>(null)
 const feedback = shallowRef('')
 
@@ -23,13 +26,13 @@ async function copy(record: JourneyRecord) {
 
 <template>
   <section class="album">
-    <header class="album-header"><button type="button" @click="navigateTo('/me')">←</button><div><span>TICKET ARCHIVE</span><h1>奇遇票根册</h1><p>每解锁一位伙伴，收藏一张票根</p></div><small>{{ records.filter(item => item.ticket).length }} 张</small></header>
+    <header class="album-header"><button type="button" @click="navigateTo(returnTo)">←</button><div><span>TICKET ARCHIVE</span><h1>奇遇票根册</h1><p>每解锁一位伙伴，收藏一张票根</p></div><small>{{ records.filter(item => item.ticket).length }} 张</small></header>
     <div v-if="records.some(item => item.ticket)" class="ticket-list">
       <article v-for="record in records.filter(item => item.ticket)" :key="record.id" class="album-card">
-        <NuxtLink :to="`/posttrip/tickets/${record.ticket!.id}`" class="ticket-link">
+        <NuxtLink :to="`/posttrip/tickets/${record.ticket!.id}?from=${source}`" class="ticket-link">
           <JourneyTicketAlbumPreview :record="record" :companion="catalog.companions.find(item => item.id === record.ticket!.companionId)!" />
         </NuxtLink>
-        <div class="ticket-meta"><span><small>{{ record.visitDate }}</small><strong>{{ record.zooName }}</strong><code>{{ record.ticket!.ticketNumber }}</code></span><div><NuxtLink to="/posttrip/ticket">编辑</NuxtLink><button type="button" @click="copy(record)">复制文案</button><button class="delete" type="button" @click="pendingDelete = record">删除</button></div></div>
+        <div class="ticket-meta"><span><small>{{ record.visitDate }}</small><strong>{{ record.zooName }}</strong><code>{{ record.ticket!.ticketNumber }}</code></span><div><NuxtLink :to="`/posttrip/ticket?from=${source}`">编辑</NuxtLink><button type="button" @click="copy(record)">复制文案</button><button class="delete" type="button" @click="pendingDelete = record">删除</button></div></div>
       </article>
     </div>
     <div v-else class="album-empty"><i>◇</i><h2>票根册还是空的</h2><p>抵达动物展区并解锁 Agent 后，就会获得对应伙伴票根。</p><NuxtLink to="/pretrip">返回伙伴对话</NuxtLink></div>

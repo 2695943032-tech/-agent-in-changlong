@@ -7,6 +7,8 @@ import { buildTicketShareCaption } from '../../utils/journeyRecord'
 import JourneyTicketPreview from './JourneyTicketPreview.vue'
 
 const props = defineProps<{ journey: JourneyRecord, companion: Companion }>()
+const route = useRoute()
+const source = computed(() => route.query.from === 'chat' ? 'chat' : 'me')
 const ticket = computed(() => props.journey.ticket!)
 const selectedPhoto = computed(() => props.journey.media.find(item => item.id === ticket.value.coverPhotoId))
 const { objectUrl: photoUrl } = useJourneyMedia(() => selectedPhoto.value?.storageKey)
@@ -35,7 +37,7 @@ async function exportImage(kind: 'horizontal' | 'story', share = false) {
 
 <template>
   <article class="ticket-detail">
-    <header><button type="button" @click="navigateTo('/posttrip/tickets')">←</button><div><span>TICKET DETAIL</span><h1>我的奇遇票根</h1></div><NuxtLink to="/posttrip/ticket">编辑</NuxtLink></header>
+    <header><button type="button" @click="navigateTo(`/posttrip/tickets?from=${source}`)">←</button><div><span>TICKET DETAIL</span><h1>我的奇遇票根</h1></div><NuxtLink :to="`/posttrip/ticket?from=${source}`">编辑</NuxtLink></header>
     <div class="detail-preview"><JourneyTicketPreview :ticket="ticket" :companion="companion" :photo-url="photoUrl" /></div>
     <section class="detail-info"><span>{{ journey.visitDate }}</span><h2>{{ ticket.title }}</h2><p>{{ ticket.message }}</p><dl><div><dt>票根编号</dt><dd>{{ ticket.ticketNumber }}</dd></div><div><dt>主要伙伴</dt><dd>{{ companion.name }}</dd></div><div><dt>生成日期</dt><dd>{{ ticket.createdAt.slice(0,10) }}</dd></div></dl></section>
     <section v-if="ticket.audio" class="ticket-sound"><span>TRAVEL SOUND</span><h3>包含一段旅行声音</h3><p>声音只在应用内播放，静态分享图片不会携带音频。</p><audio v-if="audioUrl" :src="audioUrl" controls /></section>

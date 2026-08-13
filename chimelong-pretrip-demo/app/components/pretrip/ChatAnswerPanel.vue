@@ -10,7 +10,7 @@ import type {
   RestaurantId,
   VisitorProfile,
 } from '../../../shared/types/pretrip'
-import AnimalPriorityPicker from './AnimalPriorityPicker.vue'
+import GateJourneyPicker from './GateJourneyPicker.vue'
 import DiningPicker from './DiningPicker.vue'
 import PartyPicker from './PartyPicker.vue'
 import TimeWheelPicker from './TimeWheelPicker.vue'
@@ -68,12 +68,13 @@ function canContinue(): boolean {
       && end <= 22 * 60
       && end - start >= 240)
   }
-  if (props.step === 'animals') return draft.value.animalPriority.length > 0
+  if (props.step === 'gates') return Boolean(draft.value.entryGate && draft.value.exitGate && (draft.value.entryGate !== 'north' || draft.value.takeNorthGateTrain !== null))
   if (props.step === 'dining') return draft.value.diningChoice !== null
   return true
 }
 
 function answerSummary(): string {
+  if (props.step === 'gates') return `${draft.value.entryGate === 'north' ? '北门' : '南门'}入园，${draft.value.exitGate === 'north' ? '北门' : '南门'}离园${draft.value.entryGate === 'north' ? (draft.value.takeNorthGateTrain ? '，乘坐小火车' : '，步行游园') : ''}`
   if (props.step === 'party') {
     const labels = { family: '亲子家庭', couple: '情侣出游', friends: '朋友结伴', solo: '独自出游', unknown: '未填写' }
     const childInfo = draft.value.children.map((child, index) => `儿童${index + 1}${child.age !== null ? `${child.age}岁` : ''}${child.age !== null && child.heightCm !== null ? '/' : ''}${child.heightCm !== null ? `${child.heightCm}cm` : ''}`).join('，')
@@ -81,7 +82,7 @@ function answerSummary(): string {
   }
   if (props.step === 'pace') return props.paceOptions.find(item => item.id === draft.value.pace)?.name ?? '暂未选择节奏'
   if (props.step === 'time') return `${draft.value.startTime}—${draft.value.endTime}`
-  if (props.step === 'animals') {
+  if (false) {
     return draft.value.animalPriority
       .map((id, index) => `${index + 1}.${props.animals.find(item => item.id === id)?.name ?? id}`)
       .join('，')
@@ -110,7 +111,7 @@ function skip() {
   if (props.step === 'party') Object.assign(next, { partyType: 'unknown', adultCount: null, childCount: null, children: [] })
   if (props.step === 'pace') next.pace = null
   if (props.step === 'time') Object.assign(next, { startTime: null, endTime: null })
-  if (props.step === 'animals') next.animalPriority = []
+  if (props.step === 'gates') Object.assign(next, { entryGate: 'south', exitGate: 'south', takeNorthGateTrain: false })
   if (props.step === 'dining') next.diningChoice = null
   if (props.step === 'supplement') next.freeText = ''
   emit('interact')
@@ -119,11 +120,6 @@ function skip() {
 
 function selectPace(pace: Pace) {
   draft.value = { ...draft.value, pace }
-  emit('interact')
-}
-
-function updatePriority(value: AnimalId[]) {
-  draft.value = { ...draft.value, animalPriority: value }
   emit('interact')
 }
 
@@ -162,12 +158,7 @@ function generatePlan() {
       <small>可选范围固定为10:00—22:00，鼠标滚轮或下拉滑动均可调节；跳过时也使用10:00—22:00作为规划边界。</small>
     </div>
 
-    <AnimalPriorityPicker
-      v-else-if="step === 'animals'"
-      :model-value="draft.animalPriority"
-      :animals="animals"
-      @update:model-value="updatePriority"
-    />
+    <GateJourneyPicker v-else-if="step === 'gates'" v-model="draft" @interact="emit('interact')" />
 
     <DiningPicker
       v-else-if="step === 'dining'"
@@ -186,7 +177,7 @@ function generatePlan() {
     <div v-else class="confirm-card">
       <span class="confirm-kicker">偏好已收集完成</span>
       <strong>让{{ companionId === 'panda' ? '团团' : companionId === 'tiger' ? '凯凯' : '悠米' }}开始规划</strong>
-      <p>路线会优先保留你的动物排名，再使用地图距离优化实际到访顺序。</p>
+      <p>路线会从入园门开始，尽量覆盖全部动物主题展区，并在最后引导至你选择的离园门。</p>
       <button type="button" :disabled="disabled" @click="generatePlan">生成我的路线</button>
     </div>
 

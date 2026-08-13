@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CatalogResponse, CompanionId } from '../../shared/types/pretrip'
 import { merchCatalog } from '../utils/merchCatalog'
+import JourneyTicketAlbumPreview from '../components/journey-ticket/JourneyTicketAlbumPreview.vue'
 
 useHead({ title: '我的奇遇 · 长隆奇遇伙伴' })
 
@@ -12,6 +13,7 @@ const journeys = useJourneyRecords()
 const bag = useMerchBag()
 const bagExpanded = shallowRef(true)
 const badgeExpanded = shallowRef(false)
+const ticketExpanded = shallowRef(false)
 
 const unlockedIds = computed<CompanionId[]>(() => [...new Set([
   ...unlocks.ids.value,
@@ -28,6 +30,7 @@ const ticketCount = computed(() => Math.max(
   unlockedIds.value.length,
   journeys.collection.value.records.filter(record => record.ticket).length,
 ))
+const ticketRecords = computed(() => journeys.collection.value.records.filter(record => record.ticket))
 const primaryCompanion = computed(() => catalog.value?.companions.find(item => item.id === pretrip.state.value.companionId)
   ?? unlockedCompanions.value[0]
   ?? catalog.value?.companions[0])
@@ -59,9 +62,9 @@ const visitorSummary = computed(() => {
       <button type="button" @click="badgeExpanded = !badgeExpanded">
         <i class="badge-icon">章</i><span><strong>我的徽章</strong><small>记录已解锁的动物伙伴</small></span><b>{{ badgeExpanded ? '⌄' : '›' }}</b>
       </button>
-      <NuxtLink to="/posttrip/tickets">
-        <i class="ticket-icon">票</i><span><strong>奇遇票根</strong><small>每解锁一位伙伴，收藏一张票根</small></span><b>›</b>
-      </NuxtLink>
+      <button type="button" @click="ticketExpanded = !ticketExpanded">
+        <i class="ticket-icon">票</i><span><strong>奇遇票根</strong><small>每解锁一位伙伴，收藏一张票根</small></span><b>{{ ticketExpanded ? '⌃' : '›' }}</b>
+      </button>
     </section>
 
     <Transition name="section-rise">
@@ -90,7 +93,20 @@ const visitorSummary = computed(() => {
       </section>
     </Transition>
 
-    <NuxtLink class="memory-entry" to="/posttrip"><span>回忆星册</span><strong>查看今天的路线、观察与伙伴总结</strong><b>打开 ›</b></NuxtLink>
+    <Transition name="section-rise">
+      <section v-if="ticketExpanded" class="collection-card ticket-card">
+        <header><div><small>MEMORY TICKETS</small><h2>奇遇票根</h2></div><span>{{ ticketRecords.length }} 张</span></header>
+        <div v-if="ticketRecords.length && catalog" class="ticket-preview-list">
+          <article v-for="record in ticketRecords" :key="record.id">
+            <JourneyTicketAlbumPreview :record="record" :companion="catalog?.companions.find(item => item.id === record.ticket!.companionId)!" />
+            <small>{{ record.visitDate }} · {{ record.ticket!.ticketNumber }}</small>
+          </article>
+        </div>
+        <div v-else class="empty-collection"><i>票</i><strong>还没有收集到票根</strong><p>完成一段园区奇遇后，票根会自动出现在这里。</p></div>
+      </section>
+    </Transition>
+
+    <NuxtLink class="memory-entry" to="/posttrip?from=me"><span>回忆星册</span><strong>查看今天的路线、观察与伙伴总结</strong><b>打开 ›</b></NuxtLink>
   </main>
 </template>
 
@@ -102,6 +118,7 @@ const visitorSummary = computed(() => {
 .collection-card { margin-top: 14px; overflow: hidden; border: 1px solid rgba(24,67,55,.1); border-radius: 20px; background: rgba(255,255,255,.86); }.collection-card > header { display: flex; padding: 15px; align-items: end; justify-content: space-between; border-bottom: 1px solid rgba(24,67,55,.08); }.collection-card header div { display: grid; gap: 2px; }.collection-card header small { color: #a36b24; font-size: 7px; font-weight: 900; letter-spacing: .12em; }.collection-card h2 { margin: 0; font-family: var(--font-display); font-size: 17px; }.collection-card header > span { color: #7b8981; font-size: 9px; }.bag-list { display: grid; padding: 10px; gap: 8px; }.bag-list article { display: grid; grid-template-columns: 54px 1fr auto; padding: 8px; align-items: center; gap: 9px; border-radius: 14px; background: #f8f5ed; }.bag-list img { width: 54px; height: 54px; border-radius: 12px; background: #fff; object-fit: cover; }.bag-list span { display: grid; gap: 2px; }.bag-list small { color: #a36b24; font-size: 8px; }.bag-list strong { font-size: 10px; }.bag-list em { color: #ad4f2d; font-size: 10px; font-style: normal; font-weight: 900; }.bag-list button { padding: 6px 7px; border: 1px solid #dfd7c8; border-radius: 8px; background: #fff; color: #8a7666; font-size: 8px; }
 .empty-collection { display: grid; min-height: 190px; padding: 25px; place-content: center; place-items: center; text-align: center; }.empty-collection > i { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 16px; background: #eee7d8; color: #967044; font-size: 12px; font-style: normal; font-weight: 900; }.empty-collection strong { margin-top: 9px; font-size: 12px; }.empty-collection p { max-width: 260px; margin: 4px 0 10px; color: #7d8781; font-size: 9px; line-height: 1.6; }.empty-collection a { padding: 8px 10px; border-radius: 9px; background: #16483b; color: #fff; font-size: 9px; text-decoration: none; }
 .badge-grid { display: grid; grid-template-columns: repeat(3,1fr); padding: 12px; gap: 8px; }.badge-grid article { display: grid; padding: 9px 5px; place-items: center; gap: 3px; border-radius: 14px; background: #f1f5ee; text-align: center; }.badge-grid img { width: 52px; height: 52px; border-radius: 50%; background: #fff; object-fit: cover; }.badge-grid strong { margin-top: 3px; font-size: 10px; }.badge-grid small { color: #7b8981; font-size: 7px; }
+.ticket-preview-list { display: grid; padding: 10px; gap: 12px; }.ticket-preview-list article { overflow: hidden; padding: 8px; border-radius: 15px; background: #f8f5ed; }.ticket-preview-list small { display: block; padding: 7px 3px 1px; color: #8b6c50; font-size: 8px; }
 .memory-entry { display: grid; grid-template-columns: 1fr auto; margin-top: 14px; padding: 15px; gap: 3px 12px; border-radius: 18px; background: #e8d6ae; color: #163d33; text-decoration: none; }.memory-entry span { color: #8b5b20; font-size: 8px; font-weight: 900; }.memory-entry strong { font-size: 11px; }.memory-entry b { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 9px; }
-.section-rise-enter-active,.section-rise-leave-active { transition: opacity .25s ease, transform .3s ease; }.section-rise-enter-from,.section-rise-leave-to { opacity: 0; transform: translateY(-8px); }
+.section-rise-enter-active,.section-rise-leave-active { transition: none; }
 </style>
