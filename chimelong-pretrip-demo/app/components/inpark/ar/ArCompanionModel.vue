@@ -10,6 +10,7 @@ let frameId = 0
 let mixer: THREE.AnimationMixer | null = null
 let activeClip: THREE.AnimationAction | null = null
 let loadedModel: THREE.Group | null = null
+let resizeObserver: ResizeObserver | null = null
 
 function material(color: THREE.ColorRepresentation) {
   return new THREE.MeshStandardMaterial({ color, roughness: .72, metalness: .02 })
@@ -107,6 +108,8 @@ async function loadDetailedPanda() {
 }
 
 const riggedModelPaths: Partial<Record<CompanionId, string>> = {
+  tiger: '/models/companions/tiger-companion-ar-v6.glb?v=6',
+  elephant: '/models/companions/elephant-companion-ar-v3.glb?v=3',
   koala: '/models/companions/koala-companion-ar-v20.glb?v=20',
   giraffe: '/models/companions/giraffe-companion-ar-v5.glb?v=5',
 }
@@ -118,7 +121,7 @@ async function loadRiggedCompanion(id: CompanionId) {
   const group = gltf.scene
   group.updateMatrixWorld(true)
   const initialBox = new THREE.Box3().setFromObject(group)
-  const targetHeight = id === 'giraffe' ? 2.45 : 2.18
+  const targetHeight = id === 'giraffe' ? 2.45 : id === 'elephant' ? 2.12 : 2.18
   const scale = targetHeight / Math.max(initialBox.getSize(new THREE.Vector3()).y, .001)
   group.scale.setScalar(scale)
   group.userData.baseScaleY = scale
@@ -128,6 +131,8 @@ async function loadRiggedCompanion(id: CompanionId) {
   group.position.set(-center.x, -.78 - box.min.y, -center.z)
   group.userData.baseY = group.position.y
   group.userData.clips = gltf.animations
+  // Static high-detail companions keep the existing procedural idle/talk motion.
+  // Rigged assets use their authored clips when available.
   group.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       child.castShadow = true
@@ -169,7 +174,18 @@ async function mountScene() {
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(31, 1, .1, 100); camera.position.set(0, .75, 6.4)
   renderer = new THREE.WebGLRenderer({ canvas: canvas.value, alpha: true, antialias: true, powerPreference: 'high-performance' })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false); renderer.shadowMap.enabled = true
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true
+  const resize = () => {
+    if (!canvas.value || !renderer) return
+    const width = Math.max(canvas.value.clientWidth, 1)
+    const height = Math.max(canvas.value.clientHeight, 1)
+    camera.aspect = width / height
+    camera.updateProjectionMatrix()
+    renderer.setSize(width, height, false)
+  }
+  resize()
+  resizeObserver = new ResizeObserver(resize)
+  resizeObserver.observe(canvas.value)
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.48
   scene.add(new THREE.HemisphereLight('#fff8e8', '#456b61', 3.5))
   const key = new THREE.DirectionalLight('#fff1ce', 5.2); key.position.set(3.4, 5.5, 4.5); key.castShadow = true; scene.add(key)
@@ -227,7 +243,7 @@ async function mountScene() {
 
 onMounted(mountScene)
 watch(() => props.action, playModelAction)
-onBeforeUnmount(() => { cancelAnimationFrame(frameId); mixer?.stopAllAction(); mixer = null; activeClip = null; loadedModel = null; renderer?.dispose(); renderer = null })
+onBeforeUnmount(() => { cancelAnimationFrame(frameId); resizeObserver?.disconnect(); resizeObserver = null; mixer?.stopAllAction(); mixer = null; activeClip = null; loadedModel = null; renderer?.dispose(); renderer = null })
 </script>
 
 <template><canvas ref="modelCanvas" class="companion-model" :aria-label="`${props.companionId} 3D 动物伙伴模型`" /></template>
