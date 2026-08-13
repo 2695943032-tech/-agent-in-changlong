@@ -14,3 +14,13 @@
 - Final display and mobile GLBs were re-imported into Blender and rendered for validation.
 
 The v1 Hunyuan asset is a static geometry deliverable. Rigging and the `idle / greeting / talk / listen` action set remain a later animation stage.
+
+## Native-surface face correction v2
+
+- Editable delivery: `gorilla-companion-face-corrected-v2.blend`.
+- Display delivery: `wip/hunyuan/gorilla-display-v2.glb` at 240,000 triangles.
+- Mobile runtime: `public/models/companions/gorilla-companion-ar-v2.glb` at 79,999 triangles and approximately 1.50 MB.
+- Mask, eyes, brows, nose, and muzzle colors are assigned directly to native polygons instead of floating face shells.
+- The projecting muzzle, eye sockets, forehead, and ears remain a single spatially coherent surface at every view angle.
+- The decimated mesh is validated before GLB export; the final GLB is re-imported and rendered successfully.
+- Validation: `references/face-spatial-v2/` and `references/gorilla-face-mobile-glb-check-v2.png`.

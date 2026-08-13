@@ -40,3 +40,12 @@ The shared companion skeleton is retained, with dedicated hand bones and a three
 - The forehead mark, eyes, pupils, brows, cheek stripes, nose, and bag pixels are independent raised geometry.
 - Surface relief and color use Blender procedural geometry and solid material regions. There are no image texture nodes and no baked texture maps.
 - Exported GLBs are re-imported into Blender for final rendering, bounds, floor-contact, triangle-count, and image-dependency validation.
+
+## Native-surface face correction v4
+
+- Editable delivery: `art/companions/tiger/tiger-companion-face-corrected-v4.blend`.
+- Display delivery: `art/companions/tiger/wip/hunyuan/tiger-display-v4.glb` at 240,000 triangles.
+- Mobile runtime: `public/models/companions/tiger-companion-ar-v4.glb` at 80,000 triangles and 1,499,276 bytes.
+- Facial regions now use the generated head's own polygons. No camera-facing eye, brow, stripe, nose, or muzzle planes are present.
+- Forehead, socket, cheek, and muzzle depth therefore remain coherent from front, profile, and top views.
+- Validation: `references/face-spatial-v4/` and `references/tiger-face-mobile-glb-check-v4.png`.

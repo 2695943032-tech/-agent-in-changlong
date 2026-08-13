@@ -14,3 +14,12 @@
 - Final display and mobile GLBs were re-imported into Blender and rendered for validation.
 
 The v1 Hunyuan asset is a static geometry deliverable. Rigging and the `idle / greeting / talk / listen` action set remain a later animation stage.
+
+## Native-surface face correction v2
+
+- Editable delivery: `elephant-companion-face-corrected-v2.blend`.
+- Display delivery: `wip/hunyuan/elephant-display-v2.glb` at 240,000 triangles.
+- Mobile runtime: `public/models/companions/elephant-companion-ar-v2.glb` at 80,000 triangles and 1,480,116 bytes.
+- Eye, iris, pupil, and brow colors are assigned to native head polygons; the eye sockets and curled trunk retain their original geometric depth.
+- Surface-normal and front-depth gates prevent facial/garment colors from spilling onto the ears, trunk, or torso.
+- Validation: `references/face-spatial-v2/` and `references/elephant-face-mobile-glb-check-v2.png`.
