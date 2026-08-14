@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AnimalId, AnimalPoi, GeoPoint } from '../../../shared/types/pretrip'
+import type { AnimalId, AnimalPoi, GeoPoint, ParkGate } from '../../../shared/types/pretrip'
 import type { ParkNavigationRoute, ParkService } from '../../../shared/types/park'
 import { parkMapMeta } from '#shared/data/parkGeometry.generated'
 import { parkLiveLandmarks, parkLiveRoads } from '#shared/data/parkLiveData.generated'
-import { routePath } from '#shared/utils/parkGeo'
+import { navigationRouteFromPosition, routePath } from '#shared/utils/parkGeo'
 
 type ParkLandmark = (typeof parkLiveLandmarks)[number]
 
 const props = withDefaults(defineProps<{
   animals: readonly AnimalPoi[]
   routeZoneIds?: readonly AnimalId[]
+  entryGate?: ParkGate
+  exitGate?: ParkGate
+  takeNorthGateTrain?: boolean
   completedZoneIds?: readonly AnimalId[]
   currentPosition?: GeoPoint | null
   currentZoneId?: AnimalId | null
@@ -26,6 +29,9 @@ const props = withDefaults(defineProps<{
   initialPanXPercent?: number
 }>(), {
   routeZoneIds: () => [],
+  entryGate: 'south',
+  exitGate: 'south',
+  takeNorthGateTrain: false,
   completedZoneIds: () => [],
   currentPosition: null,
   currentZoneId: null,
@@ -125,12 +131,44 @@ function geographicPointsAttribute(points: readonly (readonly [number, number])[
 const surveyedRoads: Array<{ id: string, kind: string, points: string }> = []
 const visibleLandmarks = parkLiveLandmarks.filter(landmark => landmark.name !== '珑翠花园')
 
+const northGate = { longitude: 113.310704, latitude: 23.009179 }
+const trainDropoff = { longitude: 113.308861, latitude: 23.008988 }
+const southGate = { longitude: 113.315459, latitude: 23.00128 }
+
+function networkSegment(id: string, from: GeoPoint, to: GeoPoint) {
+  const route = navigationRouteFromPosition(from, {
+    id,
+    kind: 'animal',
+    name: id,
+    longitude: to.longitude,
+    latitude: to.latitude,
+  })
+  return { id, points: navigationPointsAttribute(route.path) }
+}
+
 const routeSegments = computed(() => {
-  const nodes = ['entrance', ...props.routeZoneIds]
-  return nodes.slice(0, -1).map((from, index) => ({
-    id: `${from}:${nodes[index + 1]}`,
-    points: pointsAttribute(routePath(from!, nodes[index + 1]!)),
-  }))
+  const zones = props.routeZoneIds
+  if (!zones.length) return []
+
+  const poi = (id: AnimalId) => props.animals.find(item => item.id === id)
+  const segments: Array<{ id: string, points: string }> = []
+  const entryPoint = props.entryGate === 'north'
+    ? (props.takeNorthGateTrain ? trainDropoff : northGate)
+    : southGate
+  let currentPoint: GeoPoint = entryPoint
+  let previousId = props.takeNorthGateTrain ? 'train-dropoff' : `${props.entryGate}-gate`
+
+  for (const zoneId of zones) {
+    const destination = poi(zoneId)
+    if (!destination) continue
+    segments.push(networkSegment(`${previousId}:${destination.id}`, currentPoint, destination))
+    currentPoint = destination
+    previousId = destination.id
+  }
+
+  const exitPoint = props.exitGate === 'north' ? northGate : southGate
+  segments.push(networkSegment(`${previousId}:${props.exitGate}-gate`, currentPoint, exitPoint))
+  return segments
 })
 
 const actualRouteSegments = computed(() => {
@@ -166,6 +204,13 @@ function constrainPan() {
   const maxY = rect.height * (zoom.value - 1) / 2
   pan.x = Math.max(-maxX, Math.min(maxX, pan.x))
   pan.y = Math.max(-maxY, Math.min(maxY, pan.y))
+}
+
+function navigationPointsAttribute(points: readonly { x: number, y: number }[]) {
+  return points.map(point => {
+    const projected = vectorToRasterPoint([point.x, point.y])
+    return `${projected.x},${projected.y}`
+  }).join(' ')
 }
 
 onMounted(async () => {
@@ -271,13 +316,13 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             :ry="fenceRadius(zone.latitude, zone.geofenceRadiusMeters).ry"
             :class="{ active: currentZoneId === zone.id }"
           />
-        </g>
+      </g>
 
-        <g class="route-layer">
-          <polyline v-for="segment in routeSegments" :key="segment.id" :points="segment.points" class="plan-halo" />
-          <polyline v-for="segment in routeSegments" :key="`line-${segment.id}`" :points="segment.points" class="plan-line" />
-        </g>
-        <g v-if="navigationPoints" class="navigation-layer" filter="url(#route-glow)">
+      <g v-if="routeSegments.length" class="route-layer">
+        <polyline v-for="segment in routeSegments" :key="segment.id" :points="segment.points" class="plan-halo" />
+        <polyline v-for="segment in routeSegments" :key="`line-${segment.id}`" :points="segment.points" class="plan-line" />
+      </g>
+      <g v-if="navigationPoints" class="navigation-layer" filter="url(#route-glow)">
           <polyline :points="navigationPoints" class="navigation-halo" />
           <polyline :points="navigationPoints" class="navigation-line" />
         </g>
@@ -343,7 +388,7 @@ const serviceGlyphs: Record<ParkService['serviceKind'], string> = {
             <rect x="-145" y="66" width="290" height="95" class="zone-label-hit-area" />
             <circle r="64" class="zone-ring" />
             <circle r="46" class="zone-core" />
-            <text y="16" text-anchor="middle">{{ routeZoneIds.includes(zone.id) ? routeZoneIds.indexOf(zone.id) + 1 : index + 1 }}</text>
+            <text v-if="routeZoneIds.includes(zone.id)" y="16" text-anchor="middle">{{ routeZoneIds.indexOf(zone.id) + 1 }}</text>
             <text y="124" text-anchor="middle" class="zone-name">{{ zone.name }}</text>
           </g>
         </g>

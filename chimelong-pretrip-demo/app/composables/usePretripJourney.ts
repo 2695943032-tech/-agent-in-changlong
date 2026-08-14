@@ -32,7 +32,7 @@ interface HistoryEntry {
 }
 
 interface JourneyState {
-  version: 4
+  version: 5
   view: JourneyView
   companionId: CompanionId | null
   profile: VisitorProfile
@@ -44,10 +44,10 @@ interface JourneyState {
   plan: PlanResponse | null
 }
 
-export const chatSteps: ChatStep[] = ['party', 'pace', 'time', 'animals', 'dining', 'supplement', 'confirm']
+export const chatSteps: ChatStep[] = ['party', 'pace', 'time', 'gates', 'dining', 'supplement', 'confirm']
 
-const STORAGE_KEY = 'chimelong-pretrip-journey-v4'
-const LEGACY_STORAGE_KEYS = ['chimelong-pretrip-journey-v3']
+const STORAGE_KEY = 'chimelong-pretrip-journey-v5'
+const LEGACY_STORAGE_KEYS = ['chimelong-pretrip-journey-v3', 'chimelong-pretrip-journey-v4']
 
 function createEmptyProfile(): VisitorProfile {
   return {
@@ -58,6 +58,9 @@ function createEmptyProfile(): VisitorProfile {
     pace: null,
     startTime: '10:00',
     endTime: '22:00',
+    entryGate: null,
+    exitGate: null,
+    takeNorthGateTrain: null,
     animalPriority: [],
     diningChoice: null,
     freeText: '',
@@ -66,7 +69,7 @@ function createEmptyProfile(): VisitorProfile {
 
 function createInitialState(): JourneyState {
   return {
-    version: 4,
+    version: 5,
     view: 'select-agent',
     companionId: null,
     profile: createEmptyProfile(),
@@ -100,12 +103,20 @@ function cloneMessages(messages: JourneyMessage[]): JourneyMessage[] {
   return messages.map(message => ({ ...message }))
 }
 
+function routeBrief(plan: PlanResponse) {
+  const entry = plan.entryGate === 'north' ? '北门' : '南门'
+  const exit = plan.exitGate === 'north' ? '北门' : '南门'
+  const walkingStops = plan.stops.map(stop => stop.name).join(' → ')
+  const trainSegment = plan.takeNorthGateTrain ? '先乘小火车车览：袋鼠区 → 熊猫村 → 虎园 → 小火车下车点；下车后步行：' : ''
+  return `路线顺序是：${entry}入园 → ${trainSegment}${walkingStops}${walkingStops ? ' → ' : ''}${exit}离园。全程预计步行 ${plan.walkingMeters} 米、约 ${plan.walkingMinutes} 分钟。`
+}
+
 function questionFor(step: ChatStep): string {
   const questions: Record<ChatStep, string> = {
     party: '先认识一下同行伙伴：这次是谁一起出发？',
     pace: '你们想用什么节奏逛动物园？我会结合人数给出推荐。',
     time: '预计几点入园、几点离园？时间会决定能保留多少高优先级点位。',
-    animals: '依次点击最想看的动物，数字1—6代表优先保留级别。',
+    gates: '请选择北门或南门入园、离园；北门入园可再选择是否乘坐小火车，我会据此安排完整闭环路线。',
     dining: '需要在园内用餐吗？我会结合路线标出更顺路的选择。',
     supplement: '还有什么想特别告诉我？例如孩子下午容易累。',
     confirm: '信息已经齐了。确认后，我会用地图距离知识库生成实际游览顺序。',
@@ -231,7 +242,10 @@ export function usePretripJourney() {
       if (remainingDelay > 0) await new Promise(resolve => setTimeout(resolve, remainingDelay))
       state.value.plan = plan
       state.value.view = 'chat'
-      state.value.messages.push(createMessage('assistant', '路线规划好啦，等你入园后我会自动检测到你，我在长隆等你哦！如果我没有检测到，你可以随时发送“我到啦”来激活我。', 'reply', 'template'))
+      state.value.messages.push(createMessage('assistant', routeBrief(plan), 'reply', 'template', {
+        actions: [{ id: 'view-generated-route', label: '查看完整路线', type: 'view-map', variant: 'primary' }],
+      }))
+      state.value.messages.push(createMessage('assistant', '路线已经规划好。入园后我会根据你的位置继续提示下一站；如果没有自动检测到位置，也可以发送“我到啦”开始导航。', 'reply', 'template'))
     }
     catch (error) {
       errorMessage.value = formatPlanRequestError(error)
@@ -258,6 +272,15 @@ export function usePretripJourney() {
       mode: 'template',
       text: '欢迎入园！路线已经为你准备好了，点开上面的地图卡就可以查看园区地图和路线，我们出发吧！',
     })
+    if (state.value.plan.takeNorthGateTrain) {
+      state.value.messages.push({
+        id: 'north-gate-train-tiger-reminder',
+        role: 'assistant',
+        kind: 'reply',
+        mode: 'template',
+        text: '你已从北门上车。小火车会途经袋鼠区、熊猫村和虎园；接近虎园时我会提醒你留意白虎活动。下车后，路线将从剩余动物主题展区继续，并最终带你前往所选离园门。',
+      })
+    }
   }
 
   return {

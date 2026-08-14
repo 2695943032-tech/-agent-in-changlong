@@ -15,6 +15,8 @@ type TicketOrientation = 'horizontal' | 'vertical'
 
 const props = defineProps<{ journey: JourneyRecord, companions: Companion[] }>()
 const emit = defineEmits<{ saved: [ticket: JourneyTicket] }>()
+const route = useRoute()
+const source = computed(() => route.query.from === 'chat' ? 'chat' : 'me')
 
 const records = useJourneyRecords()
 const initial = props.journey.ticket ?? buildJourneyTicket(props.journey)
@@ -182,20 +184,20 @@ async function addToAlbum() {
   const savedTicket = saveDraft()
   if (import.meta.client) sessionStorage.setItem('chimelong-collect-ticket-id', savedTicket.id)
   await nextTick()
-  await navigateTo({ path: '/posttrip/tickets/collect', query: { ticket: savedTicket.id } })
+  await navigateTo({ path: '/posttrip/tickets/collect', query: { ticket: savedTicket.id, from: source.value } })
 }
 </script>
 
 <template>
   <section class="ticket-editor" :style="{ '--memory-accent': companion.accent }">
     <header class="editor-header">
-      <button type="button" aria-label="返回回忆星册" @click="navigateTo('/posttrip')">←</button>
+      <button type="button" aria-label="返回回忆星册" @click="navigateTo(`/posttrip?from=${source}`)">←</button>
       <div>
         <span>EDIT MEMORY TICKET</span>
         <h1>编辑奇遇票根</h1>
         <p>上方看成品，下方快速调整</p>
       </div>
-      <NuxtLink to="/posttrip/tickets">票根册</NuxtLink>
+      <NuxtLink :to="`/posttrip/tickets?from=${source}`">票根册</NuxtLink>
     </header>
 
     <main class="editor-workbench">
@@ -310,12 +312,7 @@ async function addToAlbum() {
 .editor-footer p { margin: 0 0 7px; padding: 7px 10px; border-radius: 99px; background: #fff7e8; color: #9a523e; font-size: 8px; text-align: center; }
 .album-action { width: 100%; min-height: 50px; border: 0; border-radius: 16px 5px 16px 5px; background: #253b32; color: #fff; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(37,59,50,.18); }
 .album-action:disabled { opacity: .52; }
-.preview-enter-active,.preview-leave-active { transition: opacity .22s ease,transform .28s var(--ease-out); }
-.preview-enter-from { opacity: 0; transform: translateX(12px) scale(.98); }
-.preview-leave-to { opacity: 0; transform: translateX(-10px) scale(.98); }
-.panel-enter-active,.panel-leave-active { transition: opacity .18s ease,transform .22s var(--ease-out); }
-.panel-enter-from { opacity: 0; transform: translateY(8px); }
-.panel-leave-to { opacity: 0; transform: translateY(-6px); }
+.preview-enter-active,.preview-leave-active,.panel-enter-active,.panel-leave-active { transition: none; }
 
 @media (max-height: 720px) {
   .preview-stage { flex-basis: 128px; padding-top: 9px; }

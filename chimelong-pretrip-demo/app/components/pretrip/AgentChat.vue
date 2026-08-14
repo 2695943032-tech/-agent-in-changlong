@@ -107,6 +107,11 @@ onMounted(() => {
   void refreshOperations()
   operationsTimer = setInterval(refreshOperations, 3000)
 })
+onMounted(() => {
+  clearUnplannedShowReminders()
+  checkShowReminders()
+  showReminderTimer = setInterval(checkShowReminders, 30_000)
+})
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' || document.activeElement?.tagName !== 'INPUT') return
   if (!composerText.value.trim()) return
@@ -134,7 +139,16 @@ type LocalTimelineItem =
   | { id: string, type: 'show-reminder', service: ParkService, route: ParkNavigationRoute, startLabel: string, createdAt?: number }
 
 const localMessages = useState<LocalTimelineItem[]>('pretrip-local-messages', () => [])
+const announcedShows = new Set<string>()
 type PriorityTimelineItem = Extract<LocalTimelineItem, { type: 'show-reminder' | 'posttrip' | 'test-location' }>
+
+function clearUnplannedShowReminders() {
+  if (props.plan) return
+  localMessages.value = localMessages.value.filter(message => message.type !== 'show-reminder')
+  announcedShows.clear()
+}
+
+watch(() => props.plan, () => clearUnplannedShowReminders(), { immediate: true })
 
 onMounted(() => {
   if (activeCompanion.value) agentUnlocks.unlock(activeCompanion.value.id)
@@ -238,12 +252,28 @@ const destinationRequest = shallowRef<{ text: string, kind: 'restaurant' | 'anim
 const activeDestination = shallowRef<ParkNavigationTarget | null>(null)
 const activeRestroom = shallowRef<ParkService | null>(null)
 const activeNavigation = shallowRef<ParkNavigationRoute | null>(null)
-const announcedShows = new Set<string>()
 let showReminderTimer: ReturnType<typeof setInterval> | undefined
 type ParkLandmark = (typeof parkLiveLandmarks)[number]
 const selectedService = shallowRef<ParkService | null>(null)
 const selectedLandmark = shallowRef<ParkLandmark | null>(null)
-const demoPosition = reactive({ ...parkMapPoints.panda })
+const gatePositions = {
+  south: { ...parkMapPoints.entrance },
+  // Northern gate / train interchange coordinate from the surveyed park POIs.
+  north: { x: 585, y: 420, longitude: 113.310704, latitude: 23.009179 },
+} as const
+const trainDropoffPosition = {
+  longitude: 113.308861,
+  latitude: 23.008988,
+  x: Number(((113.308861 - parkMapMeta.bounds.minLon) / (parkMapMeta.bounds.maxLon - parkMapMeta.bounds.minLon) * 100).toFixed(2)),
+  y: Number(((parkMapMeta.bounds.maxLat - 23.008988) / (parkMapMeta.bounds.maxLat - parkMapMeta.bounds.minLat) * 100).toFixed(2)),
+}
+// Before a route is created, start the visitor at Chimelong Safari Park's north gate.
+const demoPosition = reactive({ ...gatePositions.north })
+
+watch(() => props.plan, (plan) => {
+  if (!plan) return
+  Object.assign(demoPosition, plan.entryGate === 'north' && plan.takeNorthGateTrain ? trainDropoffPosition : gatePositions[plan.entryGate])
+}, { immediate: true })
 function pickupPoint(id: string, name: string, detail: string, x: number, y: number): ParkService {
   return {
     id,
@@ -388,6 +418,9 @@ function simulateLeavingPark() {
 }
 
 function checkShowReminders() {
+  // A reminder only makes sense after the visitor has completed the planning flow.
+  // Without a plan, it otherwise appears before any preferences have been selected.
+  if (!props.plan) return
   const venue = parkServices.find(service => service.serviceKind === 'show')
   if (!venue) return
   const now = new Date()
@@ -478,16 +511,59 @@ function buildDestinationChoices(request: { text: string, kind: 'restaurant' | '
     .sort((a, b) => a.route.distanceMeters - b.route.distanceMeters)
 }
 const destinationChoices = computed(() => destinationRequest.value ? buildDestinationChoices(destinationRequest.value) : [])
-const searchMatches = computed(() => {
+const legacySearchMatches = computed(() => {
   const query = mapSearch.value.trim().toLowerCase()
   if (!query) return []
   return [...props.animals.map(item => ({ id: item.id, label: item.name, type: '动物展区', zone: item })), ...mapServices.map(item => ({ id: item.id, label: item.name, type: '园区服务', service: item }))]
     .filter(item => item.label.toLowerCase().includes(query)).slice(0, 5)
 })
-function selectSearchMatch(match: { zone?: AnimalPoi, service?: ParkService }) {
+function selectLegacySearchMatch(match: { zone?: AnimalPoi, service?: ParkService }) {
   selectedZone.value = match.zone ?? null
   if (match.service) activeRestroom.value = match.service
   mapSearch.value = ''
+}
+
+type MapSearchMatch = {
+  id: string
+  label: string
+  type: string
+  keywords: string
+  zone?: AnimalPoi
+  service?: ParkService
+  landmark?: ParkLandmark
+}
+
+const animalSearchAliases: Record<AnimalPoi['id'], string> = {
+  panda: '熊猫 大熊猫 国宝 熊猫园',
+  giraffe: '长颈鹿 长颈鹿园',
+  gorilla: '黑猩猩 猩猩 大猩猩 猩猩园',
+  tiger: '老虎 白虎 虎园',
+  elephant: '大象 亚洲象 象园 亚洲象园',
+  koala: '考拉 无尾熊 考拉园',
+}
+
+const searchMatches = computed(() => {
+  const query = mapSearch.value.trim().toLowerCase()
+  if (!query) return []
+  const matches: MapSearchMatch[] = [
+    ...props.animals.map(item => ({ id: `animal-${item.id}`, label: item.name, type: '动物展区', keywords: `${item.name} ${item.description}`, zone: item })),
+    ...mapServices.map(item => ({ id: `service-${item.id}`, label: item.name, type: '园区服务', keywords: `${item.name} ${item.detail} ${item.aliases.join(' ')}`, service: item })),
+    ...parkLiveLandmarks.map(item => ({ id: `landmark-${item.id}`, label: item.name, type: item.category || '园区兴趣点', keywords: `${item.name} ${item.category}`, landmark: item })),
+  ]
+  return matches.filter(item => item.keywords.toLowerCase().includes(query)
+    || Boolean(item.zone && animalSearchAliases[item.zone.id].toLowerCase().includes(query))).slice(0, 8)
+})
+
+function selectSearchMatch(match: MapSearchMatch) {
+  if (match.zone) selectZonePoi(match.zone)
+  else if (match.service) selectServicePoi(match.service)
+  else if (match.landmark) selectLandmarkPoi(match.landmark)
+  mapSearch.value = ''
+}
+
+function selectFirstSearchMatch() {
+  const match = searchMatches.value[0]
+  if (match) selectSearchMatch(match)
 }
 
 function offerAnimalAgent(zone: AnimalPoi) {
@@ -884,7 +960,7 @@ const poiInfo = computed(() => {
   const value = 22 + ((landmark.id.length * 5 + heatTick.value * 8) % 61)
   return {
     name: landmark.name,
-    detail: isShow ? '建议提前到场，现场以当日节目单为准。' : `${landmark.category} POI，可在地图中查看位置与路线。`,
+    detail: isShow ? '建议提前到场，现场以当日节目单为准。' : `${landmark.category}地点，可在地图中查看位置与路线。`,
     hours: isShow ? '表演时间 10:30 / 13:00 / 15:30' : '开放时间 09:30—17:30',
     metric: `火爆程度 ${value}%`,
   }
@@ -1017,7 +1093,7 @@ watch([
         <time v-if="shouldShowTimelineTime(messageIndex)" class="timeline-time">{{ formatTimelineTime(message) }}</time>
         <button v-if="message.type === 'map' && plan" class="location-card" type="button" @click="mapOpen = true">
           <span class="location-pin">⌖</span>
-          <span><small>{{ companion.name }}分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个 POI · 预计步行 {{ plan.walkingMeters }} 米</em></span>
+          <span><small>{{ companion.name }}分享了一个位置</small><strong>{{ plan.title }}</strong><em>{{ plan.stops.length }} 个推荐地点 · 预计步行 {{ plan.walkingMeters }} 米</em></span>
           <b>查看地图 ›</b>
         </button>
         <div v-else-if="message.type === 'photo'" class="message-row user photo-message">
@@ -1093,7 +1169,7 @@ watch([
         </div>
         <div v-else-if="message.type === 'posttrip'" class="message-row assistant posttrip-message">
           <span class="message-avatar">忆</span>
-          <div class="message-bubble posttrip-entry-card"><small>本次奇遇即将完成</small><strong>要离园了吗？团团已经把今天收藏好了</strong><p>可以先查看解锁的游后图鉴，也可以进入游后回顾重温路线、照片和伙伴总结。</p><div><NuxtLink to="/posttrip/tickets"><span>图</span><em>游后图鉴</em><b>查看收藏 ›</b></NuxtLink><NuxtLink to="/posttrip"><span>忆</span><em>游后回顾</em><b>重温旅程 ›</b></NuxtLink></div></div>
+          <div class="message-bubble posttrip-entry-card"><small>游后回顾已生成</small><strong>把今天的奇遇，整理成一册回忆</strong><p>先回看路线、到访展区和伙伴总结；票根会作为最后的纪念品保存下来。</p><div><NuxtLink class="review-link" to="/posttrip?from=chat"><span>忆</span><em>查看今日回顾</em><b>从路线开始 ›</b></NuxtLink><NuxtLink to="/posttrip/tickets?from=chat"><span>票</span><em>票根收藏</em><b>最后领取 ›</b></NuxtLink></div></div>
         </div>
         <div v-else-if="message.type === 'message'" class="message-row" :class="message.role">
           <span v-if="message.role === 'assistant'" class="message-avatar">{{ (message.agentName ?? currentCompanion.name).slice(0, 1) }}</span>
@@ -1263,10 +1339,10 @@ watch([
         <div v-else class="message-row assistant posttrip-message">
           <span class="message-avatar">忆</span>
           <div class="message-bubble posttrip-entry-card">
-            <small>本次奇遇即将完成</small>
-            <strong>要离园了吗？团团已经把今天收藏好了</strong>
-            <p>可以先查看解锁的游后图鉴，也可以进入游后回顾重温路线、照片和伙伴总结。</p>
-            <div><NuxtLink to="/posttrip/tickets"><span>图</span><em>游后图鉴</em><b>查看收藏 ›</b></NuxtLink><NuxtLink to="/posttrip"><span>忆</span><em>游后回顾</em><b>重温旅程 ›</b></NuxtLink></div>
+            <small>游后回顾已生成</small>
+            <strong>把今天的奇遇，整理成一册回忆</strong>
+            <p>先回看路线、到访展区和伙伴总结；票根会作为最后的纪念品保存下来。</p>
+            <div><NuxtLink class="review-link" to="/posttrip?from=chat"><span>忆</span><em>查看今日回顾</em><b>从路线开始 ›</b></NuxtLink><NuxtLink to="/posttrip/tickets?from=chat"><span>票</span><em>票根收藏</em><b>最后领取 ›</b></NuxtLink></div>
           </div>
         </div>
       </template>
@@ -1356,11 +1432,11 @@ watch([
     </Transition>
 
       <Transition name="map-drop"><div v-if="mapOpen" :class="['map-backdrop', { 'tab-map-backdrop': route.query.tab === 'map' }]" @click.self="closeMap"><div :class="['map-modal', { 'tab-map-modal': route.query.tab === 'map' }]" role="dialog" aria-modal="true" aria-label="园区路线地图">
-      <header><div><small>园区实时地图 · POI 与路网</small><strong>{{ plan?.title ?? '长隆野生动物世界' }}</strong><label class="map-search"><span>⌕</span><input placeholder="搜索动物、展区或服务"></label></div><button v-if="route.query.tab !== 'map'" type="button" @click="closeMap">×</button></header>
-       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan?.actualAnimalOrder ?? []" :current-position="demoPosition" :services="mapServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
+      <header><div><small>园区实时地图 · 步行路网</small><strong>{{ plan?.title ?? '长隆野生动物世界' }}</strong><div class="map-search-wrap"><label class="map-search"><span>⌕</span><input v-model="mapSearch" type="search" autocomplete="off" placeholder="搜索动物、展区、服务或景点" @keydown.enter.prevent="selectFirstSearchMatch"></label><div v-if="mapSearch.trim()" class="poi-search-results" role="listbox" aria-label="园区地点搜索结果"><button v-for="match in searchMatches" :key="match.id" type="button" role="option" @click="selectSearchMatch(match)"><span><strong>{{ match.label }}</strong><small>{{ match.type }}</small></span><b>定位</b></button><p v-if="!searchMatches.length">未找到相关地点，请换个关键词试试</p></div></div></div><button v-if="route.query.tab !== 'map'" type="button" @click="closeMap">×</button></header>
+       <div class="map-canvas"><ParkRasterMap :animals="animals" :route-zone-ids="plan?.actualAnimalOrder ?? []" :entry-gate="plan?.entryGate ?? 'north'" :exit-gate="plan?.exitGate ?? 'south'" :take-north-gate-train="plan?.takeNorthGateTrain ?? false" :current-position="demoPosition" :services="mapServices" :show-services="true" :navigation-route="activeNavigation" :interactive="true" @select-zone="selectZonePoi" @select-service="selectServicePoi" @select-landmark="selectLandmarkPoi" /></div>
       <footer v-if="activeDestination && !activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ activeDestination.name }}</strong><span>已为你规划园区步行路线。</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
       <footer v-if="activeRestroom && activeNavigation" class="navigation-summary"><small>正在为你导航</small><strong>{{ restroomLabels[activeRestroom.id] ?? activeRestroom.name }}</strong><span>{{ activeRestroom.detail }}</span><b>距你 {{ activeNavigation.distanceMeters }} 米 · 步行约 {{ activeNavigation.walkingMinutes }} 分钟</b></footer>
-      <footer v-if="poiInfo" class="poi-summary"><small>园区 POI 信息</small><strong>{{ poiInfo.name }}</strong><span>{{ poiInfo.detail }}</span><b>{{ poiInfo.hours }} · {{ poiInfo.metric }}</b></footer>
+      <footer v-if="poiInfo" class="poi-summary"><small>园区地点信息</small><strong>{{ poiInfo.name }}</strong><span>{{ poiInfo.detail }}</span><b>{{ poiInfo.hours }} · {{ poiInfo.metric }}</b></footer>
       <footer v-if="zoneInfo" class="zone-summary"><small>展区实时信息</small><strong>{{ zoneInfo.name }}</strong><span>{{ zoneInfo.description }}</span><b>当前状态：{{ animalState }} · 火爆指数 {{ zoneHeat }}%</b><button type="button" @click="startZoneNavigation">现在出发</button></footer>
       <footer v-else><strong>路线已标记</strong><span>点击地图中的动物展区，查看介绍、状态与实时火爆指数。</span></footer>
       </div></div></Transition>
@@ -1569,6 +1645,13 @@ watch([
 .photo-message .message-bubble { width: min(82%, 286px); padding: 4px; overflow: hidden; }.photo-message .message-bubble img { display: block; width: 100%; max-height: 320px; border-radius: 12px; object-fit: cover; }.photo-message .message-bubble small { padding: 1px 5px 3px; color: rgba(255,255,255,.78); }
 .posttrip-message { align-items: flex-start; }.posttrip-entry-card { width: min(100%, 350px); max-width: 350px; padding: 12px; border-color: #dbc590; background: linear-gradient(145deg, #fffdf6, #f7eed7); }.posttrip-entry-card > small { margin: 0; color: #9b6c27; font-size: 9px; }.posttrip-entry-card > strong { display: block; margin-top: 4px; color: var(--forest); font-size: 14px; line-height: 1.45; }.posttrip-entry-card > p { margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.5; }.posttrip-entry-card > div { display: grid; margin-top: 10px; gap: 7px; }.posttrip-entry-card a { display: grid; grid-template-columns: 34px 1fr auto; padding: 8px; align-items: center; gap: 7px; border: 1px solid #d8dfca; border-radius: 11px; background: rgba(255,255,255,.78); color: var(--forest); text-decoration: none; }.posttrip-entry-card a > span { grid-row: 1 / span 2; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: var(--forest); color: #fff; font-size: 12px; font-weight: 900; }.posttrip-entry-card a > em { font-size: 11px; font-style: normal; font-weight: 800; }.posttrip-entry-card a > b { grid-column: 3; grid-row: 1 / span 2; color: #8c672d; font-size: 9px; white-space: nowrap; }
 
+.posttrip-entry-card { padding: 14px; border-radius: 18px 18px 18px 6px; box-shadow: 0 10px 24px rgba(111,82,29,.1); }
+.posttrip-entry-card > div { gap: 8px; }
+.posttrip-entry-card a { min-height: 48px; transition: transform .18s ease, box-shadow .18s ease; }
+.posttrip-entry-card a.review-link { border-color: #0b483a; background: linear-gradient(135deg,#0b483a,#135e4d); color: #fff; box-shadow: 0 8px 16px rgba(10,67,54,.18); }
+.posttrip-entry-card a.review-link > span { background: #fff4d7; color: #104f40; }
+.posttrip-entry-card a.review-link > b { color: #f4d98b; }
+.posttrip-entry-card a:active { transform: scale(.98); }
 .typing-bubble {
   display: flex;
   padding: 11px 13px;
@@ -1623,9 +1706,15 @@ watch([
 .location-card b { color: var(--accent-dark); font-size: 10px; }
 .map-modal { position: fixed; z-index: 20; right: 50%; bottom: 8px; width: min(100% - 12px, 468px); height: min(calc(var(--app-viewport-height, 100dvh) - 16px), 850px); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; border: 1px solid rgba(22,82,67,.14); border-radius: 28px; background: var(--paper); box-shadow: 0 -22px 60px rgba(21,58,48,.28); transform: translateX(50%); animation: map-rise 460ms cubic-bezier(.2,.9,.2,1); }
 .map-modal header { display: flex; align-items: center; justify-content: space-between; padding: max(14px, env(safe-area-inset-top)) 16px 14px; border-bottom: 1px solid var(--line); }
-.map-modal header div { display: grid; gap: 2px; }.map-modal header small { color: var(--accent-dark); font-size: 10px; }.map-modal header strong { color: var(--ink); font-size: 15px; }
+.map-modal header > div { display: grid; min-width: 0; flex: 1; gap: 2px; }.map-modal header small { color: var(--accent-dark); font-size: 10px; }.map-modal header strong { color: var(--ink); font-size: 15px; }
 .map-modal header button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--forest); font-size: 24px; }
-.map-search { display: flex; align-items: center; height: 38px; margin-top: 10px; padding: 0 11px; gap: 6px; border-radius: 12px; background: #e9e9e5; color: #6b716d; }.map-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }.map-canvas { min-height: 0; }.map-modal footer { display: grid; min-height: 116px; padding: 34px 16px max(15px, env(safe-area-inset-bottom)); gap: 2px; border-top: 1px solid var(--line); background: #fff; }.map-modal footer strong { color: var(--forest); font-size: 13px; }.map-modal footer span { color: var(--muted); font-size: 10px; }
+.map-search-wrap { position: relative; width: 100%; }.map-search { display: flex; align-items: center; height: 38px; margin-top: 10px; padding: 0 11px; gap: 6px; border-radius: 12px; background: #e9e9e5; color: #6b716d; }.map-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }.poi-search-results { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; left: 0; display: grid; max-height: 290px; overflow-y: auto; padding: 6px; border: 1px solid #d8ded6; border-radius: 14px; background: rgba(255,255,255,.98); box-shadow: 0 14px 28px rgba(22,55,45,.18); }.poi-search-results button { display: flex; width: 100%; min-height: 48px; padding: 8px 10px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--forest); text-align: left; }.poi-search-results button:hover,.poi-search-results button:focus-visible { background: #edf5ed; outline: 0; }.poi-search-results button span { display: grid; gap: 2px; }.poi-search-results button strong { font-size: 12px; }.poi-search-results button small { color: #708178; font-size: 10px; }.poi-search-results button b { color: #a66b25; font-size: 10px; white-space: nowrap; }.poi-search-results p { margin: 12px 8px; color: #718079; font-size: 11px; }.map-canvas { min-height: 0; }.map-modal footer { display: grid; min-height: 116px; padding: 34px 16px max(15px, env(safe-area-inset-bottom)); gap: 2px; border-top: 1px solid var(--line); background: #fff; }.map-modal footer strong { color: var(--forest); font-size: 13px; }.map-modal footer span { color: var(--muted); font-size: 10px; }
+.poi-search-results { grid-template-columns: minmax(0, 1fr); max-height: 260px; gap: 4px; }
+.poi-search-results button { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; min-height: 52px; border-radius: 10px; }
+.poi-search-results button span { min-width: 0; gap: 3px; }
+.poi-search-results button strong,.poi-search-results button small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poi-search-results button strong { font-size: 13px; }
+.poi-search-results button b { padding: 5px 8px; border-radius: 999px; background: #f4ead7; color: #9a6221; }
 .zone-status-card { display: none; }
 .zone-status-card { position: absolute; right: 12px; bottom: 70px; left: 12px; display: grid; padding: 14px; gap: 6px; border-radius: 16px; background: rgba(255,255,255,.97); box-shadow: 0 12px 28px rgba(7,56,45,.2); }.zone-status-card button { position: absolute; top: 8px; right: 9px; border: 0; background: transparent; color: var(--muted); font-size: 20px; }.zone-status-card small { color: var(--accent-dark); font-size: 10px; font-weight: 800; }.zone-status-card strong { color: var(--forest); font-size: 17px; }.zone-status-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }.zone-status-card div { display: flex; flex-wrap: wrap; gap: 5px; }.zone-status-card span { padding: 5px 7px; border-radius: 8px; background: #edf5ed; color: var(--forest); font-size: 9px; }
 .wechat-dock { position: fixed; right: 50%; bottom: calc(62px + env(safe-area-inset-bottom)); left: auto; z-index: 91; width: min(100%, 480px); min-height: 112px; padding: 9px 12px max(10px, env(safe-area-inset-bottom)); box-sizing: border-box; background: var(--paper); pointer-events: auto; transform: translateX(50%); }
@@ -1660,7 +1749,7 @@ watch([
 @keyframes map-rise { from { opacity: 0; transform: translate(50%, calc(100% + 20px)) scale(.98); } to { opacity: 1; transform: translateX(50%) scale(1); } }
 .map-backdrop { position: fixed; z-index: 19; inset: 0; background: rgba(8,30,24,.28); }
 .map-drop-enter-active .map-modal,.map-drop-leave-active .map-modal { transition: transform 380ms cubic-bezier(.2,.9,.2,1), opacity 220ms ease; }.map-drop-enter-from .map-modal,.map-drop-leave-to .map-modal { opacity: 0; transform: translate(50%, calc(100% + 20px)) scale(.98); }
-.map-modal header div { width: 100%; gap: 5px; }
+.map-modal header > div { width: 100%; gap: 5px; }
 .map-modal header small { font-size: 13px; font-weight: 800; }
 .map-modal header strong { font-size: 20px; }
 .map-search { width: min(100%, 340px); height: 44px; margin: 14px auto 0; padding: 0 14px; gap: 8px; border-radius: 14px; }
@@ -1668,7 +1757,7 @@ watch([
 .tab-map-backdrop { background: #f1f0eb; }
 .tab-map-modal { width: min(100%, 480px); border: 0; border-radius: 0; background: #f6f4ed; box-shadow: none; }
 .tab-map-modal header { padding: max(12px, env(safe-area-inset-top)) 16px 11px; background: rgba(247,245,238,.96); }
-.tab-map-modal header div { gap: 3px; }
+.tab-map-modal header > div { gap: 3px; }
 .tab-map-modal header small { color: #a16c25; font-size: 9px; letter-spacing: .04em; }
 .tab-map-modal header strong { font-size: 18px; }
 .tab-map-modal .map-search { width: 100%; height: 41px; margin: 8px 0 0; border-radius: 13px; background: #e8e9e4; }

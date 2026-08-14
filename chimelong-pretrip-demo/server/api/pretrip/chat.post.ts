@@ -1,14 +1,14 @@
 import type { ChatAction, ChatStep, ChatTurnRequest, TuantuanReminder } from '../../../shared/types/pretrip'
 import { companions } from '../../data/catalog'
 
-const validSteps = new Set(['party', 'pace', 'time', 'animals', 'dining', 'supplement', 'confirm'])
+const validSteps = new Set(['party', 'pace', 'time', 'gates', 'dining', 'supplement', 'confirm'])
 
 function actionsForStep(step: ChatStep): { actions: ChatAction[], reminder?: TuantuanReminder } {
   const defaults: Record<ChatStep, ChatAction[]> = {
     party: [{ id: 'park-map', label: '查看园区地图', type: 'view-map', variant: 'secondary' }],
     pace: [{ id: 'park-map', label: '查看园区地图', type: 'view-map', variant: 'secondary' }],
     time: [{ id: 'show-schedule', label: '查看下一场演出', type: 'show-schedule', variant: 'secondary' }],
-    animals: [{ id: 'park-map', label: '查看路线', type: 'view-map', variant: 'primary' }],
+    gates: [{ id: 'park-map', label: '查看园区地图', type: 'view-map', variant: 'primary' }],
     dining: [{ id: 'child-menu', label: '查看儿童餐', type: 'view-menu', variant: 'primary' }],
     supplement: [{ id: 'park-map', label: '查看服务地图', type: 'view-map', variant: 'secondary' }],
     confirm: [{ id: 'add-plan', label: '加入今日计划', type: 'add-plan', variant: 'primary' }],
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   return {
     message: aiMessage ?? fallbackAgentReply(companion, body.step, body.answerSummary),
     mode: aiMessage ? 'deepseek' : 'template',
-    ...(body.step === 'animals' ? { recommendedRestaurantId: recommendRestaurant(body.profile) } : {}),
+    ...(body.step === 'gates' ? { recommendedRestaurantId: recommendRestaurant(body.profile) } : {}),
     ...actionsForStep(body.step),
   }
 })

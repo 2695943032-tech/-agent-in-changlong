@@ -4,6 +4,7 @@ const validCompanions = new Set(['panda', 'tiger', 'koala', 'elephant', 'giraffe
 const validScenarios = new Set(['normal', 'peak', 'rain'])
 const validPartyTypes = new Set(['family', 'couple', 'friends', 'solo', 'unknown'])
 const validPaces = new Set(['slow', 'balanced', 'fast'])
+const validGates = new Set(['north', 'south'])
 const validAnimals = new Set(['panda', 'giraffe', 'gorilla', 'tiger', 'elephant', 'koala'])
 const validDiningChoices = new Set(['qinglong', 'momo', 'panda', 'none'])
 
@@ -33,6 +34,11 @@ function isVisitorProfile(value: unknown): value is VisitorProfile {
     && (profile.pace === null || (typeof profile.pace === 'string' && validPaces.has(profile.pace)))
     && nullableTime(profile.startTime)
     && nullableTime(profile.endTime)
+    && typeof profile.entryGate === 'string'
+    && validGates.has(profile.entryGate)
+    && typeof profile.exitGate === 'string'
+    && validGates.has(profile.exitGate)
+    && typeof profile.takeNorthGateTrain === 'boolean'
     && Array.isArray(profile.animalPriority)
     && profile.animalPriority.every(item => typeof item === 'string' && validAnimals.has(item))
     && (profile.diningChoice === null

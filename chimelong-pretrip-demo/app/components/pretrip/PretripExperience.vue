@@ -27,6 +27,9 @@ useAppViewportHeight()
 const state = journey.state
 const selectedCompanion = computed(() => catalog.value?.companions.find(item => item.id === state.value.companionId) ?? null)
 const presence = useParkPresence()
+const route = useRoute()
+const mapOnly = computed(() => route.query.tab === 'map' && state.value.view === 'select-agent')
+const displayedCompanion = computed(() => selectedCompanion.value ?? catalog.value?.companions[0] ?? null)
 
 function selectCompanion(companion: Companion) {
   journey.chooseCompanion(companion)
@@ -76,7 +79,7 @@ async function clearCache() {
 
     <template v-else>
       <AgentSelection
-        v-if="state.view === 'select-agent'"
+        v-if="state.view === 'select-agent' && !mapOnly"
         :companions="catalog.companions"
         :ai-configured="Boolean(aiStatus?.configured)"
         :ai-model="aiStatus?.model ?? 'deepseek-v4-flash'"
@@ -84,8 +87,8 @@ async function clearCache() {
       />
 
       <AgentChat
-        v-else-if="state.view === 'chat' && selectedCompanion"
-        :companion="selectedCompanion"
+        v-else-if="(state.view === 'chat' || state.view === 'generating' || mapOnly) && displayedCompanion"
+        :companion="displayedCompanion"
         :companions="catalog.companions"
         :step="journey.currentChatStep.value"
         :step-index="state.chatStepIndex"
@@ -105,20 +108,6 @@ async function clearCache() {
         @arrive="enterPark"
       />
 
-      <section v-else-if="state.view === 'generating' && selectedCompanion" class="generating-screen">
-        <div class="generation-mark" :style="{ '--agent-accent': selectedCompanion.accent }">
-          {{ selectedCompanion.name }}
-        </div>
-        <span>地图距离知识库正在计算</span>
-        <h2>把优先级变成真正可走的路线</h2>
-        <p>计算点位取舍、最短步行组合、全时段用餐安排与模拟排队时间…</p>
-        <div class="generation-steps">
-          <i class="done" />
-          <i class="active" />
-          <i />
-        </div>
-      </section>
-
     </template>
   </main>
 </template>
@@ -133,8 +122,7 @@ async function clearCache() {
   box-shadow: none;
 }
 
-.state-screen,
-.generating-screen {
+.state-screen {
   display: grid;
   min-height: var(--app-viewport-height, 100dvh);
   padding: 34px;
@@ -145,16 +133,14 @@ async function clearCache() {
   text-align: center;
 }
 
-.state-screen p,
-.generating-screen p {
+.state-screen p {
   margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
 
-.loading-mark,
-.generation-mark {
+.loading-mark {
   display: grid;
   width: 78px;
   height: 78px;
@@ -167,44 +153,6 @@ async function clearCache() {
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 900;
-  animation: breathe 1.4s ease-in-out infinite;
 }
-
-.generation-mark {
-  background: color-mix(in srgb, var(--agent-accent) 28%, var(--forest));
-  color: #fff;
-}
-
-.generating-screen > span {
-  color: var(--accent-dark);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-}
-
-.generating-screen h2 {
-  margin: 2px 0;
-  font-family: var(--font-display);
-  font-size: 23px;
-}
-
-.generation-steps {
-  display: flex;
-  margin-top: 16px;
-  gap: 7px;
-}
-
-.generation-steps i {
-  width: 27px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(18, 60, 50, 0.13);
-}
-
-.generation-steps i.done { background: #6d9b7c; }
-.generation-steps i.active { background: var(--accent); animation: pulse 700ms ease-in-out infinite; }
-
-@keyframes breathe { 50% { transform: translateY(-4px); } }
-@keyframes pulse { 50% { opacity: 0.4; } }
 
 </style>
