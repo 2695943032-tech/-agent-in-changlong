@@ -133,6 +133,7 @@ type LocalTimelineItem =
   | { id: string, type: 'map', createdAt?: number }
   | { id: string, type: 'photo', dataUrl: string, agentName: string, usedAi: boolean, createdAt?: number }
   | { id: string, type: 'restroom-results', choices: Array<{ service: ParkService, route: ParkNavigationRoute, queue: number }>, createdAt?: number }
+  | { id: string, type: 'medical-results', choices: Array<{ service: ParkService, route: ParkNavigationRoute }>, createdAt?: number }
   | { id: string, type: 'destination-results', kind: 'restaurant' | 'animal' | 'train', choices: Array<{ target: ParkNavigationTarget, detail: string, route: ParkNavigationRoute }>, createdAt?: number }
   | { id: string, type: 'posttrip', createdAt?: number }
   | { id: string, type: 'test-location', location: { kind: 'animal', zone: AnimalPoi, companion: Companion, unlocked?: boolean, scienceAnswer?: string } | { kind: 'dining', service: ParkService }, createdAt?: number }
@@ -469,6 +470,10 @@ const restroomChoices = computed(() => parkServices
     catch { return [] }
   })
   .sort((a, b) => a.route.distanceMeters - b.route.distanceMeters))
+const medicalChoices = computed(() => parkServices
+  .filter(service => service.serviceKind === 'medical')
+  .map(service => ({ service, route: safeNavigationRoute(service) }))
+  .sort((a, b) => a.route.distanceMeters - b.route.distanceMeters))
 const diningLabels: Record<string, string> = {
   'service-dining-panda': '熊猫餐厅',
   'service-dining-koala': '考拉美食街',
@@ -685,6 +690,7 @@ async function sendChat(presetText?: string) {
   // A destination card belongs to the question that created it; don't leave it under later chat replies.
   restroomRequest.value = false
   destinationRequest.value = null
+  diningOffer.value = null
   localMessages.value.push({ id: `${Date.now()}-u`, type: 'message', role: 'user', text, createdAt: simulatedNow().getTime() })
   void scrollToLatest()
   if (showRestaurantMenuFromChat(text)) return
@@ -694,6 +700,11 @@ async function sendChat(presetText?: string) {
   }
   if (/厕所|洗手间|卫生间/.test(text)) {
     localMessages.value.push({ id: `${Date.now()}-restroom-results`, type: 'restroom-results', choices: [...restroomChoices.value], createdAt: simulatedNow().getTime() + 1000 })
+    toolsOpen.value = false
+    void scrollToLatest()
+  }
+  else if (/腿部受伤|腿受伤|腿疼|扭伤|摔伤|受伤|不舒服|需要医务|医务室|医疗/.test(text)) {
+    localMessages.value.push({ id: `${Date.now()}-medical-results`, type: 'medical-results', choices: [...medicalChoices.value], createdAt: simulatedNow().getTime() + 1000 })
     toolsOpen.value = false
     void scrollToLatest()
   }
@@ -770,6 +781,7 @@ async function submitLostChildReport() {
 }
 
 function navigateToRestroom(choice: { service: ParkService, route: ParkNavigationRoute }) {
+  diningOffer.value = null
   activeRestroom.value = choice.service
   activeDestination.value = choice.service
   activeNavigation.value = choice.route
@@ -777,7 +789,17 @@ function navigateToRestroom(choice: { service: ParkService, route: ParkNavigatio
   mapOpen.value = true
 }
 
+function navigateToMedical(choice: { service: ParkService, route: ParkNavigationRoute }) {
+  diningOffer.value = null
+  activeDestination.value = choice.service
+  activeRestroom.value = null
+  activeNavigation.value = choice.route
+  selectedZone.value = null
+  mapOpen.value = true
+}
+
 function navigateToDestination(choice: { target: ParkNavigationTarget, route: ParkNavigationRoute }) {
+  diningOffer.value = null
   activeDestination.value = choice.target
   activeRestroom.value = null
   activeNavigation.value = choice.route
@@ -786,6 +808,7 @@ function navigateToDestination(choice: { target: ParkNavigationTarget, route: Pa
 }
 
 function navigateToShowReminder(reminder: Extract<LocalTimelineItem, { type: 'show-reminder' }>) {
+  diningOffer.value = null
   activeDestination.value = reminder.service
   activeRestroom.value = null
   activeNavigation.value = reminder.route
@@ -794,6 +817,7 @@ function navigateToShowReminder(reminder: Extract<LocalTimelineItem, { type: 'sh
 }
 
 function navigateToMerchPickup(choice: { service: ParkService, route: ParkNavigationRoute }) {
+  diningOffer.value = null
   activeDestination.value = choice.service
   activeRestroom.value = null
   activeNavigation.value = choice.route
@@ -1107,6 +1131,17 @@ watch([
               <span class="restroom-icon">⌾</span>
               <span><strong>{{ restroomLabels[choice.service.id] ?? choice.service.name }}</strong><small>距你 {{ choice.route.distanceMeters }} 米 · 约 {{ choice.route.walkingMinutes }} 分钟</small></span>
               <b :class="{ busy: choice.queue >= 40 }">排队 {{ choice.queue }}%</b>
+            </button>
+          </div>
+        </div>
+        <div v-else-if="message.type === 'medical-results'" class="message-row assistant restroom-answer">
+          <span class="message-avatar">医</span>
+          <div class="message-bubble">
+            <p>先别勉强走动，我按你当前位置找到了最近的医务服务点。点击卡片即可打开地图导航。</p>
+            <button v-for="choice in message.choices" :key="`${message.id}-${choice.service.id}`" class="restroom-choice destination-choice" type="button" @click="navigateToMedical(choice)">
+              <span class="restroom-icon">✚</span>
+              <span><strong>{{ choice.service.name }}</strong><small>距你 {{ choice.route.distanceMeters }} 米 · 约 {{ choice.route.walkingMinutes }} 分钟</small></span>
+              <b>开始导航</b>
             </button>
           </div>
         </div>

@@ -12,6 +12,7 @@ MODEL = os.environ.get("COMPANION_MODEL", os.environ.get("PANDA_MODEL", os.path.
 OUTPUT = os.environ.get("COMPANION_RENDER", os.environ.get("PANDA_RENDER", os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png")))
 BLEND_OUTPUT = os.environ.get("COMPANION_BLEND", os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-hunyuan-clay-base-v1.blend")))
 FRONT_RENDER = os.environ.get("COMPANION_FRONT_RENDER") == "1"
+BRIGHT_RENDER = os.environ.get("COMPANION_BRIGHT_RENDER") == "1"
 
 
 def material(name, color, roughness=0.72, color_attribute=None):
@@ -64,12 +65,12 @@ world = bpy.context.scene.world or bpy.data.worlds.new("World")
 bpy.context.scene.world = world
 world.use_nodes = True
 world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.025, 0.035, 0.05, 1)
-world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.35
+world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.55 if BRIGHT_RENDER else 0.35
 
 for location, energy, size, color in [
-    ((-3.5, -4.5, 6.5), 1100, 4.0, (1.0, 0.78, 0.58)),
-    ((4.0, -1.0, 4.0), 900, 3.0, (0.35, 0.72, 1.0)),
-    ((0.0, 4.0, 5.0), 700, 2.5, (0.55, 0.75, 1.0)),
+    ((-3.5, -4.5, 6.5), 1450 if BRIGHT_RENDER else 1100, 4.0, (1.0, 0.84, 0.68)),
+    ((4.0, -1.0, 4.0), 1250 if BRIGHT_RENDER else 900, 3.0, (0.55, 0.78, 1.0)),
+    ((0.0, 4.0, 5.0), 950 if BRIGHT_RENDER else 700, 2.5, (0.65, 0.80, 1.0)),
 ]:
     bpy.ops.object.light_add(type="AREA", location=location)
     light = bpy.context.object
@@ -95,6 +96,7 @@ scene.render.filepath = OUTPUT
 scene.render.film_transparent = False
 scene.render.image_settings.color_mode = "RGBA"
 scene.view_settings.look = "AgX - Medium High Contrast"
+scene.view_settings.exposure = 0.65 if BRIGHT_RENDER else 0.0
 scene.render.resolution_percentage = 100
 bpy.ops.wm.save_as_mainfile(filepath=BLEND_OUTPUT)
 bpy.ops.render.render(write_still=True)
