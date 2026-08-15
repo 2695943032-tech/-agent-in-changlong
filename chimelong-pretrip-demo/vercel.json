@@ -1,5 +1,5 @@
 {
   "framework": "nuxtjs",
-  "buildCommand": "pnpm build",
-  "outputDirectory": ".output/public"
+  "buildCommand": "pnpm exec nuxi build --preset=vercel",
+  "outputDirectory": ".vercel/output"
 }
