@@ -1,4 +1,5 @@
 {
   "framework": "nuxtjs",
-  "buildCommand": "pnpm build"
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".output/public"
 }
