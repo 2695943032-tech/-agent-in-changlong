@@ -36,9 +36,16 @@ const completed = computed(() => props.journey.status === 'completed')
 const photos = computed(() => props.journey.media.filter(item => item.kind === 'photo'))
 const recoveredFromPlan = computed(() => props.journey.events.some(event => event.data?.recoveredFromPlan === true))
 const activeTabMeta = computed(() => tabs.find(tab => tab.id === activeTab.value) ?? tabs[0]!)
+const activeTabPosition = computed(() => Math.max(0, tabs.findIndex(tab => tab.id === activeTab.value)) + 1)
 
 function scrollMemoryTabs(direction: -1 | 1) {
   memoryTabs.value?.scrollBy({ left: direction * 184, behavior: 'smooth' })
+}
+
+function selectMemoryTabByPosition(event: Event) {
+  const index = Number((event.target as HTMLInputElement).value) - 1
+  const tab = tabs[index]
+  if (tab) void selectMemoryTab(tab.id)
 }
 
 async function shareMemory() {
@@ -112,6 +119,20 @@ const companionSummary = computed(() => {
         </button>
       </nav>
       <button class="tab-scroll-button" type="button" aria-label="向右查看更多栏目" @click="scrollMemoryTabs(1)">›</button>
+    </div>
+    <div class="memory-tab-progress" aria-label="回忆章节进度">
+      <span>{{ activeTabPosition.toString().padStart(2, '0') }} / {{ tabs.length.toString().padStart(2, '0') }}</span>
+      <input
+        class="memory-tab-slider"
+        type="range"
+        min="1"
+        :max="tabs.length"
+        step="1"
+        :value="activeTabPosition"
+        :style="{ '--progress': `${((activeTabPosition - 1) / (tabs.length - 1)) * 100}%` }"
+        aria-label="拖动切换回忆章节"
+        @input="selectMemoryTabByPosition"
+      >
     </div>
 
     <section class="memory-panel" :aria-label="activeTabMeta.label">
@@ -248,6 +269,25 @@ const companionSummary = computed(() => {
 .memory-tabs button.active { border-color: color-mix(in srgb,var(--memory-accent) 70%,transparent); background: #fff8eb; color: #253b32; }
 .memory-tabs small { color: var(--memory-accent); font: 900 7px/1 ui-monospace,monospace; }
 .memory-tabs span { margin-top: 3px; font-size: 9px; font-weight: 900; white-space: nowrap; }
+.memory-tab-shell { grid-template-columns: 36px minmax(0,1fr) 36px; padding: 12px 14px 4px; gap: 7px; }
+.tab-scroll-button { width: 34px; height: 44px; border-radius: 50%; background: #fff; color: #365146; box-shadow: 0 8px 18px rgba(37,54,46,.09); }
+.memory-tabs { gap: 8px; padding: 0 1px; scrollbar-width: none; }
+.memory-tabs::-webkit-scrollbar { display: none; }
+.memory-tabs button { flex-basis: 112px; min-width: 112px; min-height: 62px; padding: 10px 11px; border-color: rgba(37,54,46,.08); border-radius: 14px 5px 14px 5px; background: rgba(255,255,255,.9); color: #66736c; box-shadow: 0 9px 20px rgba(37,54,46,.06); }
+.memory-tabs button.active { border-color: #123d32; background: #123d32; color: #fff; box-shadow: 0 12px 24px rgba(18,61,50,.22); }
+.memory-tabs button.active small { color: #dfb85f; }
+.memory-tabs button.active span { color: #fff; }
+.memory-tabs small { font-size: 8px; }
+.memory-tabs span { margin-top: 5px; font-size: 11px; }
+.memory-tab-progress { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; padding: 5px 26px 12px; gap: 11px; color: #748078; font: 800 8px ui-monospace,monospace; letter-spacing: .06em; }
+.memory-tab-progress span { color: #a26b30; white-space: nowrap; }
+.memory-tab-slider { width: 100%; height: 18px; margin: 0; cursor: grab; accent-color: var(--memory-accent); appearance: none; background: transparent; }
+.memory-tab-slider:active { cursor: grabbing; }
+.memory-tab-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 99px; background: linear-gradient(90deg,var(--memory-accent) var(--progress),#cbd2c9 var(--progress)); }
+.memory-tab-slider::-webkit-slider-thumb { width: 18px; height: 18px; margin-top: -7px; appearance: none; border: 3px solid #fff; border-radius: 50%; background: var(--memory-accent); box-shadow: 0 3px 9px rgba(37,54,46,.22); }
+.memory-tab-slider::-moz-range-track { height: 4px; border-radius: 99px; background: #cbd2c9; }
+.memory-tab-slider::-moz-range-progress { height: 4px; border-radius: 99px; background: var(--memory-accent); }
+.memory-tab-slider::-moz-range-thumb { width: 12px; height: 12px; border: 3px solid #fff; border-radius: 50%; background: var(--memory-accent); box-shadow: 0 3px 9px rgba(37,54,46,.22); }
 .memory-panel { min-height: 0; flex: 1 1 auto; padding: 0 10px 10px; overflow: hidden; }
 .panel-content { height: 100%; min-height: 0; overflow: hidden; }
 .memory-card { height: 100%; min-height: 0; padding: 14px; overflow: hidden; border: 1px solid rgba(51,54,47,.12); border-radius: 18px 7px 18px 7px; background: rgba(255,255,255,.78); }

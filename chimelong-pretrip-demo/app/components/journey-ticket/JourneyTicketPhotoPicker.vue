@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { JourneyMedia, TicketPhotoTransform } from '../../../shared/types/journey'
 import JourneyMediaThumb from './JourneyMediaThumb.vue'
+import { imageStyles, type ImageStyleId } from '../../utils/imageStyles'
 
 const props = defineProps<{
   photos: JourneyMedia[]
@@ -14,13 +15,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [photoId: string]
   upload: [file: File]
-  transform: []
+  transform: [style: ImageStyleId, prompt: string]
   updateTransform: [transform: TicketPhotoTransform]
   reset: []
 }>()
 
 const fileInput = useTemplateRef<HTMLInputElement>('photoInput')
 const drag = reactive({ active: false, x: 0, y: 0, originX: 50, originY: 50 })
+const selectedStyle = shallowRef<ImageStyleId>('8bit')
+const customPrompt = shallowRef('')
 
 function onFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
@@ -88,18 +91,13 @@ function pointerUp() {
       <input ref="photoInput" class="visually-hidden" type="file" accept="image/*" @change="onFile">
     </div>
 
-    <button
-      class="pixel-transform"
-      type="button"
-      :disabled="!selectedPhotoId || uploading || transforming"
-      @click="emit('transform')"
-    >
-      <i>▦</i>
-      <span>
-        <strong>{{ transforming ? '正在转换照片…' : 'AI 转为高清 bit 风' }}</strong>
-        <small>正常色彩、活泼生动，保留五官与原始构图</small>
-      </span>
-    </button>
+    <div class="style-cards">
+      <button v-for="style in imageStyles" :key="style.id" type="button" :class="{ active: selectedStyle === style.id }" @click="selectedStyle = style.id">
+        <b>{{ style.id === '8bit' ? '8' : style.id === 'ancient' ? '古' : style.id === '2d' ? '2D' : style.id === 'zine' ? '册' : '＋' }}</b><span><strong>{{ style.label }}</strong><small>{{ style.detail }}</small></span>
+      </button>
+    </div>
+    <label v-if="selectedStyle === 'custom'" class="custom-prompt"><span>自定义提示词（最多 500 字）</span><textarea v-model="customPrompt" maxlength="500" placeholder="描述你想生成的画面…"></textarea><small>{{ customPrompt.length }}/500</small></label>
+    <button class="pixel-transform" type="button" :disabled="!selectedPhotoId || uploading || transforming || (selectedStyle === 'custom' && !customPrompt.trim())" @click="emit('transform', selectedStyle, selectedStyle === 'custom' ? customPrompt : '')"><i>▦</i><span><strong>{{ transforming ? '正在生成照片…' : `生成${imageStyles.find(item => item.id === selectedStyle)?.label}` }}</strong><small>左下角自动添加长隆奇遇水印</small></span></button>
   </section>
 </template>
 
@@ -130,4 +128,10 @@ header button { border: 0; background: none; color: #77736a; font-size: 9px; }
 .pixel-transform strong { font-size: 9px; }
 .pixel-transform small { color: #777d77; font-size: 7px; }
 .pixel-transform:disabled { opacity: .48; }
+.style-cards { display: grid; grid-template-columns: 1fr 1fr; margin-top: 11px; gap: 6px; }
+.style-cards button { display: grid; min-height: 68px; grid-template-columns: 28px 1fr; align-items: center; padding: 8px; gap: 7px; border: 1px solid rgba(51,54,47,.13); border-radius: 12px 4px; background: #f7f2e8; color: #30433a; text-align: left; }
+.style-cards button.active { border: 2px solid var(--memory-accent); padding: 7px; background: color-mix(in srgb,var(--memory-accent) 8%,#fff); }
+.style-cards b { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px 3px; background: #2b4439; color: #f4d078; font-size: 9px; }
+.style-cards span { display: grid; min-width: 0; gap: 2px; }.style-cards strong { font-size: 8px; }.style-cards small { color: #777d77; font-size: 6px; line-height: 1.35; }
+.custom-prompt { position: relative; display: grid; margin-top: 8px; gap: 4px; color: #506159; font-size: 7px; font-weight: 800; }.custom-prompt textarea { min-height: 72px; padding: 8px; resize: vertical; border: 1px solid #d4dad3; border-radius: 11px 4px; background: #fff; color: #273c33; font: inherit; line-height: 1.5; }.custom-prompt small { position: absolute; right: 7px; bottom: 6px; color: #8a8f89; font-size: 6px; }
 </style>

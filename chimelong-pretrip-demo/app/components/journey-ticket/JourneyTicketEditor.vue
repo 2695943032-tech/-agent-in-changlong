@@ -9,6 +9,7 @@ import JourneyTicketMessageEditor from './JourneyTicketMessageEditor.vue'
 import JourneyTicketPhotoPicker from './JourneyTicketPhotoPicker.vue'
 import JourneyTicketPreview from './JourneyTicketPreview.vue'
 import JourneyTicketTemplatePicker from './JourneyTicketTemplatePicker.vue'
+import type { ImageStyleId } from '../../utils/imageStyles'
 
 type EditorTab = 'cover' | 'words' | 'sound' | 'style' | 'orientation'
 type TicketOrientation = 'horizontal' | 'vertical'
@@ -23,9 +24,9 @@ const initial = props.journey.ticket ?? buildJourneyTicket(props.journey)
 const ticket = reactive<JourneyTicket>(structuredClone(toRaw(initial)))
 const activeTab = shallowRef<EditorTab>('cover')
 const uploading = shallowRef(false)
-const transforming = shallowRef(false)
 const addingToAlbum = shallowRef(false)
 const feedback = shallowRef('')
+const { transforming, transform: transformToPixelArt, dataUrlToBlob, errorMessage: pixelArtErrorMessage } = usePixelArtTransform()
 let feedbackTimer: ReturnType<typeof setTimeout> | undefined
 
 const tabs: Array<{ id: EditorTab, label: string, eyebrow: string }> = [
@@ -101,35 +102,13 @@ async function uploadPhoto(file: File) {
   }
 }
 
-function dataUrlToBlob(dataUrl: string) {
-  const [header, encoded] = dataUrl.split(',', 2)
-  if (!header || !encoded) throw new Error('图片转换结果格式无效')
-  const mimeType = header.match(/^data:([^;]+);base64$/)?.[1] ?? 'image/png'
-  const binary = atob(encoded)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return new Blob([bytes], { type: mimeType })
-}
-
-function requestErrorMessage(cause: unknown) {
-  if (cause && typeof cause === 'object') {
-    const data = (cause as { data?: { statusMessage?: string, message?: string } }).data
-    if (data?.statusMessage) return data.statusMessage
-    if (data?.message) return data.message
-  }
-  return cause instanceof Error ? cause.message : '像素照片转换失败，请稍后重试'
-}
-
-async function transformSelectedPhoto() {
+async function transformSelectedPhoto(style: ImageStyleId = '8bit', prompt = '') {
   if (transforming.value || !selectedPhoto.value) return
-  transforming.value = true
-  feedback.value = '正在保留人物特征，并转换为正常色彩的高清 bit 风。'
+  feedback.value = `正在生成${style === '8bit' ? '8bit 复古风' : style === 'ancient' ? '高级古风' : style === '2d' ? '精致 2D 风' : style === 'zine' ? '东方建筑画册' : '自定义风格'}。`
   try {
     const source = await readJourneyBlob(selectedPhoto.value.storageKey)
     if (!source) throw new Error('没有读取到这张照片，请重新上传')
-    const body = new FormData()
-    body.append('image', source, `visitor-photo.${source.type.split('/')[1] || 'png'}`)
-    const result = await $fetch<{ imageDataUrl: string }>('/api/posttrip/pixelize', { method: 'POST', body })
+    const result = await transformToPixelArt(source, `visitor-photo.${source.type.split('/')[1] || 'png'}`, { style, prompt })
     const output = dataUrlToBlob(result.imageDataUrl)
     const id = `media-pixel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const storageKey = `${props.journey.id}/${id}`
@@ -141,7 +120,7 @@ async function transformSelectedPhoto() {
       storageKey,
       mimeType: output.type,
       createdAt: new Date().toISOString(),
-      caption: 'AI 高清 bit 纪念照',
+      caption: `AI ${style} 纪念照`,
       isHighlight: true,
     })
     ticket.coverPhotoId = id
@@ -150,10 +129,7 @@ async function transformSelectedPhoto() {
     feedback.value = '像素纪念照已生成，并设为当前票根封面。'
   }
   catch (cause) {
-    feedback.value = requestErrorMessage(cause)
-  }
-  finally {
-    transforming.value = false
+    feedback.value = pixelArtErrorMessage(cause)
   }
 }
 

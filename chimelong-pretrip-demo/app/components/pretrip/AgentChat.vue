@@ -122,7 +122,6 @@ onMounted(() => window.addEventListener('keydown', handleComposerKeydown))
 onBeforeUnmount(() => { if (heatTimer) clearInterval(heatTimer); if (operationsTimer) clearInterval(operationsTimer); stopShowReminderTimer() })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleComposerKeydown))
 const toolsOpen = shallowRef(false)
-const voiceActive = shallowRef(false)
 const composerText = shallowRef('')
 const lostChildOpen = shallowRef(false)
 const lostChildSubmitting = shallowRef(false)
@@ -1403,6 +1402,7 @@ watch([
     </div>
     <div v-else-if="plan && route.query.tab !== 'map' && !mapOpen" class="wechat-dock">
       <input ref="photoInput" class="photo-input" type="file" accept="image/*" capture="environment" @change="attachPhoto">
+      <button class="photo-creation-card" type="button" @click="capturePhoto"><i>✦</i><span><strong>和{{ currentCompanion.name }}创作一张照片</strong><small>上传后可选择合影、贴纸和 AI 风格</small></span><b>打开</b></button>
       <div class="quick-prompts" aria-label="快捷提问">
         <button type="button" @click="sendQuickPrompt('我要去厕所')">我要去厕所</button>
         <button type="button" @click="sendQuickPrompt('离我最近的餐厅在哪')">离我最近的餐厅在哪</button>
@@ -1410,17 +1410,12 @@ watch([
         <button class="emergency-prompt" type="button" @click="lostChildOpen = true">儿童走失播报</button>
       </div>
       <div class="composer-row">
-        <button :class="{ active: voiceActive }" type="button" @click="voiceActive = !voiceActive">◉</button>
         <input v-model="composerText" placeholder="和团团说点什么…">
         <button type="button">☺</button>
         <button class="plus-button" type="button" @click="toolsOpen = !toolsOpen">＋</button>
       </div>
-      <small v-if="voiceActive" class="voice-hint">正在聆听，点击圆形按钮结束</small>
       <div v-if="toolsOpen" class="tool-grid">
-        <button type="button" @click="mapOpen = true; toolsOpen = false"><i>⌖</i><span>地图</span></button>
         <button type="button" @click="navigateTo('/inpark/ar')"><i>AR</i><span>实景奇遇</span></button>
-        <button type="button" @click="capturePhoto"><i>◉</i><span>拍摄</span></button>
-        <button type="button" @click="voiceActive = !voiceActive; toolsOpen = false"><i>♬</i><span>语音输入</span></button>
         <button type="button" @click="merchBagOpen = true; toolsOpen = false"><i>袋</i><span>纪念袋<b v-if="merchBagIds.length">{{ merchBagIds.length }}</b></span></button>
       </div>
     </div>
@@ -1753,7 +1748,8 @@ watch([
 .zone-status-card { display: none; }
 .zone-status-card { position: absolute; right: 12px; bottom: 70px; left: 12px; display: grid; padding: 14px; gap: 6px; border-radius: 16px; background: rgba(255,255,255,.97); box-shadow: 0 12px 28px rgba(7,56,45,.2); }.zone-status-card button { position: absolute; top: 8px; right: 9px; border: 0; background: transparent; color: var(--muted); font-size: 20px; }.zone-status-card small { color: var(--accent-dark); font-size: 10px; font-weight: 800; }.zone-status-card strong { color: var(--forest); font-size: 17px; }.zone-status-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }.zone-status-card div { display: flex; flex-wrap: wrap; gap: 5px; }.zone-status-card span { padding: 5px 7px; border-radius: 8px; background: #edf5ed; color: var(--forest); font-size: 9px; }
 .wechat-dock { position: fixed; right: 50%; bottom: calc(62px + env(safe-area-inset-bottom)); left: auto; z-index: 91; width: min(100%, 480px); min-height: 112px; padding: 9px 12px max(10px, env(safe-area-inset-bottom)); box-sizing: border-box; background: var(--paper); pointer-events: auto; transform: translateX(50%); }
-.animal-status { color: #42805a !important; font-weight: 800; }.composer-row { display: grid; grid-template-columns: 35px 1fr 34px 34px; align-items: center; gap: 8px; }.composer-row input { min-width: 0; height: 37px; padding: 0 11px; border: 0; border-radius: 7px; background: #fff; color: var(--ink); font-size: 13px; }.composer-row button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; background: transparent; color: #31443d; font-size: 23px; line-height: 1; }.composer-row button.active { color: #ba6332; }.plus-button { font-size: 26px !important; }.photo-input { display: none; }.voice-hint { display: block; margin: 5px 44px 0; color: #ba6332; font-size: 10px; }.tool-grid { display: grid; grid-template-columns: repeat(5, minmax(48px, 64px)); justify-content: space-between; padding: 15px 2px 5px; gap: 4px; }.tool-grid button { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: var(--ink); font-size: 10px; }.tool-grid i { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; background: #e3e5df; color: var(--forest); font-size: 22px; font-style: normal; }.tool-grid button:nth-child(2) i { background: var(--forest); color: #fff; font-size: 14px; font-weight: 900; letter-spacing: -.04em; }.tool-grid span { position: relative; }.tool-grid span b { position: absolute; top: -52px; right: -10px; display: grid; min-width: 17px; height: 17px; padding: 0 4px; place-items: center; border-radius: 999px; background: #bd4c2e; color: #fff; font-size: 9px; }
+.photo-creation-card { display: grid; width: 100%; grid-template-columns: 34px 1fr auto; align-items: center; margin-bottom: 8px; padding: 8px 10px; gap: 8px; border: 1px solid #cddccc; border-radius: 14px 5px 14px 5px; background: #f7fbf3; color: var(--forest); text-align: left; box-shadow: 0 6px 14px rgba(41,74,55,.07); }.photo-creation-card i { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 10px 3px; background: var(--forest); color: #f4d27b; font-style: normal; }.photo-creation-card span { display: grid; gap: 2px; }.photo-creation-card strong { font-size: 10px; }.photo-creation-card small { color: #6c7d70; font-size: 8px; }.photo-creation-card>b { padding: 5px 7px; border-radius: 8px 3px; background: #e7f0e3; font-size: 8px; }
+.animal-status { color: #42805a !important; font-weight: 800; }.composer-row { display: grid; grid-template-columns: 1fr 34px 34px; align-items: center; gap: 8px; }.composer-row input { min-width: 0; height: 37px; padding: 0 11px; border: 0; border-radius: 7px; background: #fff; color: var(--ink); font-size: 13px; }.composer-row button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; background: transparent; color: #31443d; font-size: 23px; line-height: 1; }.plus-button { font-size: 26px !important; }.photo-input { display: none; }.tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 15px 0 5px; gap: 0; }.tool-grid button { display: grid; justify-items: center; gap: 6px; border: 0; background: transparent; color: var(--ink); font-size: 11px; }.tool-grid i { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 12px; background: #e3e5df; color: var(--forest); font-size: 25px; font-style: normal; }.tool-grid button:first-child i { background: var(--forest); color: #fff; font-size: 19px; font-weight: 900; }.tool-grid span { position: relative; }.tool-grid span b { position: absolute; top: -56px; right: -13px; display: grid; min-width: 17px; height: 17px; padding: 0 4px; place-items: center; border-radius: 999px; background: #bd4c2e; color: #fff; font-size: 9px; }
 
 .zone-status-card { display: none; }
 .restroom-answer .message-bubble { width: min(100%, 330px); }

@@ -1,279 +1,47 @@
 <script setup lang="ts">
-/**
- * 游客与动物 Agent 的合照生成器。
- * 技术栈：Nuxt / Vue + Canvas 2D + MediaPipe Tasks Vision（浏览器端运行）。
- * 不上传原始照片；人物检测、分割和合成均在用户本机异步完成。
- */
-const props = defineProps<{
-  sourceFile: File
-  stickerSources: readonly string[]
-  agentName: string
-}>()
-
-const emit = defineEmits<{
-  complete: [image: string, usedAi: boolean]
-  close: []
-  retry: []
-}>()
-
+import { imageStyles, type ImageStyleId } from '../../utils/imageStyles'
+const props = defineProps<{ sourceFile: File, stickerSources: readonly string[], agentName: string }>()
+const emit = defineEmits<{ complete: [image: string, usedAi: boolean], close: [], retry: [] }>()
+type Stage = 'choice' | 'sticker' | 'style' | 'result'
+const stage = shallowRef<Stage>('choice')
 const previewUrl = shallowRef('')
-const composedUrl = shallowRef('')
-const processing = shallowRef(false)
-const progressText = shallowRef('准备照片…')
+const sourceForTransform = shallowRef<Blob>(props.sourceFile)
+const selectedSticker = shallowRef('')
+const selectedStyle = shallowRef<ImageStyleId>('8bit')
+const customPrompt = shallowRef('')
+const resultUrl = shallowRef('')
 const errorText = shallowRef('')
-const usedAiMask = shallowRef(false)
-
-function nextFrame() {
-  return new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+const stickerPosition = reactive({ x: 72, y: 68, size: 30 })
+const dragging = shallowRef(false)
+const previewStage = useTemplateRef<HTMLElement>('previewStage')
+const { transforming, transform, dataUrlToBlob, errorMessage } = usePixelArtTransform()
+const currentStyle = computed(() => imageStyles.find(item => item.id === selectedStyle.value) ?? imageStyles[0]!)
+const canGenerate = computed(() => selectedStyle.value !== 'custom' || customPrompt.value.trim().length > 0)
+function resetSourceUrl() { if (previewUrl.value) URL.revokeObjectURL(previewUrl.value); previewUrl.value = URL.createObjectURL(props.sourceFile); sourceForTransform.value = props.sourceFile }
+function chooseTogether(together: boolean) { errorText.value = ''; if (together) { selectedSticker.value = props.stickerSources[0] ?? ''; stage.value = 'sticker' } else stage.value = 'style' }
+function moveSticker(event: PointerEvent) { if (!dragging.value || !previewStage.value) return; const b = previewStage.value.getBoundingClientRect(); stickerPosition.x = Math.max(5, Math.min(95, (event.clientX - b.left) / b.width * 100)); stickerPosition.y = Math.max(5, Math.min(95, (event.clientY - b.top) / b.height * 100)) }
+function pointerDown(event: PointerEvent) { dragging.value = true; (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); moveSticker(event) }
+function pointerUp() { dragging.value = false }
+function loadImage(source: string) { return new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = source }) }
+async function confirmSticker() {
+  if (!selectedSticker.value) return
+  try { const [photo, sticker] = await Promise.all([loadImage(previewUrl.value), loadImage(selectedSticker.value)]); const scale = Math.min(1, 1600 / Math.max(photo.naturalWidth, photo.naturalHeight)); const canvas = document.createElement('canvas'); canvas.width = Math.round(photo.naturalWidth * scale); canvas.height = Math.round(photo.naturalHeight * scale); const context = canvas.getContext('2d')!; context.drawImage(photo, 0, 0, canvas.width, canvas.height); const width = canvas.width * stickerPosition.size / 100; const height = width * sticker.naturalHeight / sticker.naturalWidth; context.drawImage(sticker, canvas.width * stickerPosition.x / 100 - width / 2, canvas.height * stickerPosition.y / 100 - height / 2, width, height); const dataUrl = canvas.toDataURL('image/jpeg', .93); sourceForTransform.value = dataUrlToBlob(dataUrl); URL.revokeObjectURL(previewUrl.value); previewUrl.value = dataUrl; stage.value = 'style' } catch { errorText.value = '贴纸合成失败，请重新选择。' }
 }
-
-function loadImage(source: string | Blob) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('图片加载失败，请换一张照片。'))
-    image.src = typeof source === 'string' ? source : URL.createObjectURL(source)
-  })
-}
-
-/** 把高分辨率照片限制在移动端较友好的尺寸，避免 Canvas 和 AI 推理阻塞页面。 */
-function canvasSize(image: HTMLImageElement) {
-  const maxSide = 1440
-  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
-  return { width: Math.round(image.naturalWidth * scale), height: Math.round(image.naturalHeight * scale) }
-}
-
-/** 将 MediaPipe 输出的黑白类别掩码转成可用于 Canvas destination-in 的 Alpha Mask。 */
-function createAlphaMask(mask: { width: number, height: number, getAsUint8Array: () => Uint8Array }) {
-  const maskCanvas = document.createElement('canvas')
-  maskCanvas.width = mask.width
-  maskCanvas.height = mask.height
-  const context = maskCanvas.getContext('2d', { willReadFrequently: true })!
-  const pixels = mask.getAsUint8Array()
-  const imageData = context.createImageData(mask.width, mask.height)
-  for (let index = 0; index < pixels.length; index += 1) {
-    // Selfie Segmenter 的 0 为背景、非 0 为人物；仅把人物写入不透明 Alpha。
-    const offset = index * 4
-    imageData.data[offset] = 255
-    imageData.data[offset + 1] = 255
-    imageData.data[offset + 2] = 255
-    imageData.data[offset + 3] = pixels[index] ? 255 : 0
-  }
-  context.putImageData(imageData, 0, 0)
-  return maskCanvas
-}
-
-/**
- * 估计贴纸候选区域内的人像占比。数值越小，说明该区域越接近空地，越适合放 Agent。
- * 使用稀疏采样避免对高分辨率 Mask 做整块读取，移动端也能保持流畅。
- */
-function personCoverage(maskCanvas: HTMLCanvasElement, x: number, y: number, width: number, height: number, outputWidth: number, outputHeight: number) {
-  const maskData = maskCanvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data
-  let personSamples = 0
-  let samples = 0
-  for (let row = 1; row < 9; row += 1) {
-    for (let column = 1; column < 9; column += 1) {
-      const sampleX = Math.max(0, Math.min(outputWidth - 1, x + width * column / 9))
-      const sampleY = Math.max(0, Math.min(outputHeight - 1, y + height * row / 9))
-      const maskX = Math.min(maskCanvas.width - 1, Math.floor(sampleX / outputWidth * maskCanvas.width))
-      const maskY = Math.min(maskCanvas.height - 1, Math.floor(sampleY / outputHeight * maskCanvas.height))
-      if ((maskData[(maskY * maskCanvas.width + maskX) * 4 + 3] ?? 0) > 70) personSamples += 1
-      samples += 1
-    }
-  }
-  return personSamples / samples
-}
-
-/** 从人物脚边的左右两侧开始，选择人像遮挡最少的候选位置。 */
-function findSafeStickerPosition(maskCanvas: HTMLCanvasElement | null, anchor: { x: number, y: number }, personHeight: number, stickerWidth: number, stickerHeight: number, outputWidth: number, outputHeight: number) {
-  const y = Math.min(outputHeight - stickerHeight - 4, Math.max(8, anchor.y - stickerHeight))
-  const gap = Math.max(16, personHeight * .12)
-  const clampX = (value: number) => Math.min(outputWidth - stickerWidth - 10, Math.max(10, value))
-  const candidates = [
-    clampX(anchor.x + gap),
-    clampX(anchor.x - stickerWidth - gap),
-    clampX(anchor.x + personHeight * .42),
-    clampX(anchor.x - stickerWidth - personHeight * .42),
-    clampX(outputWidth * .12),
-    clampX(outputWidth * .88 - stickerWidth),
-  ]
-  if (!maskCanvas) return { x: candidates[0]!, y, coverage: 0 }
-  return candidates
-    .map(x => ({ x, y, coverage: personCoverage(maskCanvas, x, y, stickerWidth, stickerHeight, outputWidth, outputHeight) }))
-    .reduce((best, candidate) => candidate.coverage < best.coverage ? candidate : best)
-}
-
-async function compose() {
-  processing.value = true
-  errorText.value = ''
-  usedAiMask.value = false
-  progressText.value = '正在读取照片…'
-  await nextFrame()
-
-  try {
-    const source = await loadImage(props.sourceFile)
-    // 每次合照随机选一个可用贴纸；团团会在不同动作之间变化。
-    const stickerSrc = props.stickerSources[Math.floor(Math.random() * props.stickerSources.length)]
-    if (!stickerSrc) throw new Error('暂时没有可用的 Agent 贴纸。')
-    const sticker = await loadImage(stickerSrc)
-    const { width, height } = canvasSize(source)
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')!
-    const sourceUrl = URL.createObjectURL(props.sourceFile)
-    previewUrl.value = sourceUrl
-
-    // 默认锚点是画面下方偏右；视觉模型不可用时仍能生成一张可用合照。
-    let anchor = { x: width * 0.61, y: height * 0.84 }
-    // 贴纸尺寸必须以人物身高为基准，而不是以整张照片为基准。
-    let personHeight = height * .55
-    let alphaMask: HTMLCanvasElement | null = null
-
-    try {
-      progressText.value = '正在识别人物位置与轮廓…'
-      await nextFrame()
-      // 动态导入可避免 SSR 加载浏览器专用的 WebAssembly 视觉库。
-      const { FilesetResolver, ImageSegmenter, PoseLandmarker } = await import('@mediapipe/tasks-vision')
-      // WASM 与模型随网站一起发布，游客端不再依赖 CDN 或第三方视觉 API。
-      const vision = await FilesetResolver.forVisionTasks('/vision/wasm')
-      const [segmenter, poseLandmarker] = await Promise.all([
-        ImageSegmenter.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: '/vision/person_segmenter.tflite', delegate: 'GPU' },
-          runningMode: 'IMAGE', outputCategoryMask: true,
-        }),
-        PoseLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: '/vision/pose_landmarker_lite.task', delegate: 'GPU' },
-          runningMode: 'IMAGE', numPoses: 1,
-        }),
-      ])
-      const [segmentation, pose] = await Promise.all([segmenter.segment(source), Promise.resolve(poseLandmarker.detect(source))])
-      const landmarks = pose.landmarks[0]
-      if (landmarks?.length) {
-        // 左右脚踝/脚尖的最低点作为“人物双脚/底部锚点”。
-        const footPoints = [landmarks[27], landmarks[28], landmarks[31], landmarks[32]]
-          .filter((point): point is NonNullable<typeof point> => point !== undefined)
-        if (footPoints.length) {
-          const bottom = footPoints.reduce((lowest, point) => point.y > lowest.y ? point : lowest)
-          anchor = { x: bottom.x * width, y: Math.min(height * .95, bottom.y * height) }
-          const topPoints = [landmarks[0], landmarks[2], landmarks[5], landmarks[7], landmarks[8], landmarks[9], landmarks[10]]
-            .filter((point): point is NonNullable<typeof point> => point !== undefined)
-          if (topPoints.length) {
-            const top = topPoints.reduce((highest, point) => point.y < highest.y ? point : highest)
-            personHeight = Math.max(100, (bottom.y - top.y) * height)
-          }
-        }
-      }
-      if (segmentation.categoryMask) {
-        alphaMask = createAlphaMask(segmentation.categoryMask)
-        usedAiMask.value = true
-      }
-      segmenter.close()
-      poseLandmarker.close()
-    }
-    catch {
-      // 网络、GPU 或首次模型加载失败时不阻断拍照流程，改用无抠图的合成结果。
-      errorText.value = '人物识别暂不可用，已生成基础合照；联网后可再次尝试获得前景遮挡效果。'
-    }
-
-    progressText.value = '正在合成团团的合照…'
-    await nextFrame()
-    // 第一层：用户原图。
-    context.drawImage(source, 0, 0, width, height)
-
-    // Agent 不能因为姿态识别只检测到局部人物而缩成图标：人物比例与画面短边共同决定下限。
-    const stickerMinimumHeight = Math.max(120, Math.min(width, height) * .22, personHeight * .38)
-    let stickerHeight = Math.min(height * .56, Math.max(stickerMinimumHeight, personHeight * .48))
-    let stickerWidth = stickerHeight * (sticker.naturalWidth / sticker.naturalHeight)
-    let stickerPosition = findSafeStickerPosition(alphaMask, anchor, personHeight, stickerWidth, stickerHeight, width, height)
-    // 人群照片优先换位置；确需缩小时也不得低于可辨识尺寸，避免 Agent 变成右下角小图标。
-    while (stickerPosition.coverage > .12 && stickerHeight > stickerMinimumHeight) {
-      stickerHeight *= .86
-      stickerHeight = Math.max(stickerMinimumHeight, stickerHeight)
-      stickerWidth = stickerHeight * (sticker.naturalWidth / sticker.naturalHeight)
-      stickerPosition = findSafeStickerPosition(alphaMask, anchor, personHeight, stickerWidth, stickerHeight, width, height)
-    }
-    const stickerX = stickerPosition.x
-    const stickerY = stickerPosition.y
-
-    // 第二层：贴纸底部的半透明、高斯模糊椭圆阴影，帮助角色“站”在原图中。
-    context.save()
-    context.filter = 'blur(10px)'
-    context.fillStyle = 'rgba(16, 38, 29, .28)'
-    context.beginPath()
-    context.ellipse(stickerX + stickerWidth * .52, stickerY + stickerHeight * .91, stickerWidth * .35, stickerHeight * .055, 0, 0, Math.PI * 2)
-    context.fill()
-    context.restore()
-    // 贴纸稍降透明度，使其与照片原本的光影更自然地融合。
-    context.save()
-    context.globalAlpha = .9
-    context.drawImage(sticker, stickerX, stickerY, stickerWidth, stickerHeight)
-    context.restore()
-
-    if (alphaMask) {
-      // 第三层：先画一份原图，再用人物 Mask 做 destination-in，只留下人物前景。
-      // 这会让人物覆盖在贴纸上方，形成“人物遮挡贴纸”的空间关系。
-      const personLayer = document.createElement('canvas')
-      personLayer.width = width
-      personLayer.height = height
-      const personContext = personLayer.getContext('2d')!
-      personContext.drawImage(source, 0, 0, width, height)
-      personContext.globalCompositeOperation = 'destination-in'
-      personContext.drawImage(alphaMask, 0, 0, width, height)
-      context.drawImage(personLayer, 0, 0)
-    }
-
-    composedUrl.value = canvas.toDataURL('image/jpeg', .92)
-    progressText.value = usedAiMask.value ? '合照已生成' : '基础合照已生成'
-  }
-  catch (error) {
-    errorText.value = error instanceof Error ? error.message : '合照生成失败，请再试一次。'
-  }
-  finally {
-    processing.value = false
-  }
-}
-
-function usePhoto() {
-  if (composedUrl.value) emit('complete', composedUrl.value, usedAiMask.value)
-}
-
-watch(() => props.sourceFile, () => { void compose() }, { immediate: true })
-onBeforeUnmount(() => { if (previewUrl.value) URL.revokeObjectURL(previewUrl.value) })
+async function generate() { if (!canGenerate.value || transforming.value) return; errorText.value = ''; try { const result = await transform(sourceForTransform.value, 'inpark-photo.png', { style: selectedStyle.value, prompt: selectedStyle.value === 'custom' ? customPrompt.value.trim() : undefined }); resultUrl.value = result.imageDataUrl; stage.value = 'result' } catch (cause) { errorText.value = errorMessage(cause) } }
+function back() { errorText.value = ''; if (stage.value === 'result') stage.value = 'style'; else if (stage.value === 'style') { resetSourceUrl(); stage.value = 'choice' } else if (stage.value === 'sticker') stage.value = 'choice' }
+watch(() => props.sourceFile, resetSourceUrl, { immediate: true })
+onBeforeUnmount(() => { if (previewUrl.value.startsWith('blob:')) URL.revokeObjectURL(previewUrl.value) })
 </script>
-
 <template>
-  <div class="photo-backdrop" @click.self="emit('close')">
-    <section class="photo-sheet" role="dialog" aria-modal="true" aria-label="与动物 Agent 合照">
-      <header><div><small>AI PHOTO MOMENT</small><strong>和{{ agentName }}拍张合照</strong></div><button type="button" aria-label="关闭" @click="emit('close')">×</button></header>
-      <div class="photo-preview" :class="{ processing }">
-        <img v-if="composedUrl" :src="composedUrl" alt="生成的合照">
-        <img v-else-if="previewUrl" :src="previewUrl" alt="用户上传照片">
-        <span v-else>正在加载照片</span>
-        <div v-if="processing" class="photo-loading"><i></i><span>{{ progressText }}</span></div>
-      </div>
-      <p v-if="errorText" class="photo-note">{{ errorText }}</p>
-      <p v-else class="photo-note">照片仅在当前设备的浏览器内处理，不会上传到服务器。</p>
-      <footer><button type="button" @click="emit('retry')">换一张</button><button class="primary" type="button" :disabled="!composedUrl || processing" @click="usePhoto">发送合照</button></footer>
-    </section>
-  </div>
+  <div class="photo-backdrop" @click.self="emit('close')"><section class="photo-sheet" role="dialog" aria-modal="true" aria-label="AI 照片创作">
+    <header class="sheet-header"><div><small>AGENT PHOTO STUDIO</small><strong>{{ agentName }}的照片创作卡</strong></div><button type="button" aria-label="关闭" @click="emit('close')">×</button></header>
+    <div v-if="stage === 'choice'" class="choice-stage"><img :src="previewUrl" alt="刚刚上传的照片"><div class="choice-copy"><small>第一步</small><h3>要和{{ agentName }}一起合影吗？</h3><p>选择合影后，你可以自己挑贴纸、拖到喜欢的位置；不合影则直接选择生成风格。</p></div><div class="choice-grid"><button type="button" @click="chooseTogether(true)"><b>合</b><span><strong>和 Agent 合影</strong><small>手动贴上当前园区动物</small></span></button><button type="button" @click="chooseTogether(false)"><b>图</b><span><strong>不合影</strong><small>直接进入 AI 风格创作</small></span></button></div></div>
+    <div v-else-if="stage === 'sticker'" class="sticker-stage"><div ref="previewStage" class="manual-preview" @pointerdown="pointerDown" @pointermove="moveSticker" @pointerup="pointerUp" @pointercancel="pointerUp"><img class="source-photo" :src="previewUrl" alt="正在编辑的照片"><img v-if="selectedSticker" class="placed-sticker" :src="selectedSticker" alt="已选择的动物贴纸" :style="{ left: `${stickerPosition.x}%`, top: `${stickerPosition.y}%`, width: `${stickerPosition.size}%` }"><span>拖动贴纸调整位置</span></div><div class="sticker-heading"><small>已识别当前伙伴 · {{ agentName }}</small><strong>选择一张贴纸</strong></div><div class="sticker-rail"><button v-for="(source, index) in stickerSources" :key="source" type="button" :class="{ active: selectedSticker === source }" :aria-label="`选择第 ${index + 1} 张贴纸`" @click="selectedSticker = source"><img :src="source" alt=""></button></div><label class="size-control"><span>贴纸大小</span><input v-model.number="stickerPosition.size" type="range" min="16" max="55" step="1"><b>{{ stickerPosition.size }}%</b></label><button class="primary-action" type="button" :disabled="!selectedSticker" @click="confirmSticker">贴好了，选择生成风格</button></div>
+    <div v-else-if="stage === 'style'" class="style-stage"><div class="style-heading"><small>AI STYLE CARDS</small><strong>选择一种照片风格</strong><span>本次登录游中与游后合计可生成 9 张</span></div><div class="style-grid"><button v-for="style in imageStyles" :key="style.id" type="button" :class="{ active: selectedStyle === style.id }" @click="selectedStyle = style.id"><i>{{ style.id === '8bit' ? '8' : style.id === 'ancient' ? '古' : style.id === '2d' ? '2D' : style.id === 'zine' ? '册' : '＋' }}</i><strong>{{ style.label }}</strong><small>{{ style.detail }}</small></button></div><label v-if="selectedStyle === 'custom'" class="prompt-field"><span>描述你想要的画面</span><textarea v-model="customPrompt" maxlength="500" placeholder="例如：把照片变成明亮的童话绘本，保留人物和园区背景…"></textarea><b>{{ customPrompt.length }}/500</b></label><button class="primary-action" type="button" :disabled="!canGenerate || transforming" @click="generate">{{ transforming ? `正在生成${currentStyle.label}…` : `生成${currentStyle.label}` }}</button></div>
+    <div v-else class="result-stage"><img :src="resultUrl" alt="AI 生成的照片"><p>左下角已加长隆奇遇水印，可以发送给{{ agentName }}收藏。</p><button class="primary-action" type="button" @click="emit('complete', resultUrl, true)">发送这张照片</button></div>
+    <p v-if="errorText" class="error-text" aria-live="polite">{{ errorText }}</p><footer v-if="stage !== 'choice'" class="sheet-footer"><button type="button" :disabled="transforming" @click="back">上一步</button><button type="button" :disabled="transforming" @click="emit('retry')">换照片</button></footer>
+  </section></div>
 </template>
-
 <style scoped>
-.photo-backdrop { position: fixed; z-index: 36; inset: 0; display: grid; align-items: end; justify-items: center; padding: 10px; background: rgba(14, 31, 25, .48); }.photo-sheet { width: min(100%, 520px); max-height: 92dvh; padding: 16px; overflow: auto; border-radius: 24px 24px 18px 18px; background: #fffdf8; box-shadow: 0 -20px 60px rgba(14, 35, 28, .34); }.photo-sheet header { display: flex; align-items: center; justify-content: space-between; }.photo-sheet header div { display: grid; gap: 3px; }.photo-sheet header small { color: #a86b25; font-size: 9px; font-weight: 900; letter-spacing: .11em; }.photo-sheet header strong { color: #0f4033; font-size: 19px; }.photo-sheet header button { width: 36px; height: 36px; border: 1px solid #d9dfd5; border-radius: 12px; background: #fff; color: #557066; font-size: 22px; }.photo-preview { position: relative; display: grid; min-height: 250px; margin-top: 14px; place-items: center; overflow: hidden; border-radius: 16px; background: #e9eee7; }.photo-preview > img { display: block; width: 100%; max-height: 58dvh; object-fit: contain; }.photo-preview > span { color: #718179; font-size: 12px; }.photo-loading { position: absolute; inset: 0; display: grid; place-content: center; place-items: center; gap: 9px; background: rgba(18, 46, 37, .48); color: #fff; font-size: 12px; font-weight: 800; }.photo-loading i { width: 28px; height: 28px; border: 3px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }.photo-note { margin: 10px 2px 0; color: #718178; font-size: 10px; line-height: 1.5; }.photo-sheet footer { display: grid; grid-template-columns: 1fr 1.5fr; margin-top: 13px; gap: 8px; }.photo-sheet footer button { height: 42px; border: 1px solid #cedace; border-radius: 12px; background: #fff; color: #456255; font-size: 12px; font-weight: 800; }.photo-sheet footer .primary { border-color: #0b4133; background: #0b4133; color: #fff; }.photo-sheet footer button:disabled { opacity: .45; } @keyframes spin { to { transform: rotate(360deg); } }
-.photo-backdrop {
-  /* 保留聊天快捷键和输入栏，合照面板停在它们正上方。 */
-  padding-bottom: calc(176px + env(safe-area-inset-bottom));
-}
-.photo-sheet {
-  width: min(100%, 480px);
-}
-.photo-sheet footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  padding-top: 10px;
-  background: #fffdf8;
-  box-shadow: 0 -8px 14px #fffdf8;
-}
+.photo-backdrop{position:fixed;z-index:36;inset:0;display:grid;align-items:end;justify-items:center;padding:10px 10px calc(112px + env(safe-area-inset-bottom));background:rgba(14,31,25,.5)}.photo-sheet{width:min(100%,480px);max-height:84dvh;padding:16px;overflow:auto;border-radius:22px 8px 22px 8px;background:#fffdf8;box-shadow:0 -20px 60px rgba(14,35,28,.3)}.sheet-header{display:flex;align-items:center;justify-content:space-between}.sheet-header div,.style-heading,.sticker-heading{display:grid;gap:3px}.sheet-header small,.style-heading small,.sticker-heading small,.choice-copy>small{color:#a86b25;font-size:8px;font-weight:900;letter-spacing:.1em}.sheet-header strong{color:#163f34;font-size:18px}.sheet-header>button{width:36px;height:36px;border:1px solid #d8ded7;border-radius:12px 4px;background:#fff;color:#587066;font-size:21px}.choice-stage>img,.result-stage>img{display:block;width:100%;max-height:36dvh;margin-top:13px;object-fit:contain;border-radius:15px 5px;background:#e8eee8}.choice-copy{margin-top:12px}.choice-copy h3{margin:3px 0 4px;color:#203e34;font-size:17px}.choice-copy p,.result-stage p{margin:0;color:#727b75;font-size:9px;line-height:1.55}.choice-grid{display:grid;grid-template-columns:1fr 1fr;margin-top:11px;gap:8px}.choice-grid button{display:grid;min-height:92px;grid-template-columns:34px 1fr;align-items:center;padding:11px;gap:8px;border:1px solid #d8ded7;border-radius:15px 5px;background:#f8f3e9;color:#2b443a;text-align:left}.choice-grid b,.style-grid i{display:grid;width:32px;height:32px;place-items:center;border-radius:10px 3px;background:#21473a;color:#f4ce74;font-style:normal}.choice-grid span{display:grid;gap:3px}.choice-grid strong{font-size:10px}.choice-grid small{color:#747b75;font-size:7px;line-height:1.4}.manual-preview{position:relative;display:grid;min-height:240px;margin-top:13px;place-items:center;overflow:hidden;border-radius:15px 5px;background:#e7ece7;touch-action:none}.source-photo{display:block;width:100%;max-height:42dvh;object-fit:contain;pointer-events:none}.placed-sticker{position:absolute;transform:translate(-50%,-50%);filter:drop-shadow(0 7px 6px rgba(24,43,35,.22));pointer-events:none}.manual-preview>span{position:absolute;right:8px;bottom:8px;padding:4px 7px;border-radius:9px 3px;background:rgba(24,47,39,.72);color:#fff;font-size:7px}.sticker-heading,.style-heading{margin-top:13px}.sticker-heading strong,.style-heading strong{color:#213e34;font-size:15px}.style-heading span{color:#788079;font-size:8px}.sticker-rail{display:flex;margin-top:9px;gap:7px;overflow-x:auto}.sticker-rail button{flex:0 0 58px;height:58px;padding:4px;border:1px solid #d8ded7;border-radius:12px 4px;background:#f4f0e7}.sticker-rail button.active{border:2px solid #b96e27;background:#fff7e8}.sticker-rail img{width:100%;height:100%;object-fit:contain}.size-control{display:grid;grid-template-columns:60px 1fr 34px;align-items:center;margin-top:10px;gap:8px;color:#68736d;font-size:8px}.size-control input{accent-color:#a65f20}.style-grid{display:grid;grid-template-columns:1fr 1fr;margin-top:11px;gap:7px}.style-grid button{display:grid;min-height:104px;align-content:start;padding:10px;gap:4px;border:1px solid #dadfd7;border-radius:14px 5px;background:#f8f4eb;color:#30443b;text-align:left}.style-grid button.active{border:2px solid #b96e27;padding:9px;background:#fff8e9}.style-grid i{width:29px;height:29px}.style-grid strong{margin-top:3px;font-size:9px}.style-grid small{color:#747b75;font-size:7px;line-height:1.45}.prompt-field{position:relative;display:grid;margin-top:10px;gap:5px;color:#42554c;font-size:8px;font-weight:800}.prompt-field textarea{min-height:88px;padding:10px;resize:vertical;border:1px solid #d4dbd3;border-radius:12px 4px;background:#fff;color:#263b32;font:inherit;line-height:1.55}.prompt-field b{position:absolute;right:8px;bottom:7px;color:#8a8f88;font-size:7px}.primary-action{width:100%;min-height:46px;margin-top:11px;border:0;border-radius:14px 5px;background:#203f34;color:#fff;font-size:10px;font-weight:900}.primary-action:disabled{opacity:.45}.error-text{margin:9px 0 0;padding:8px 10px;border-radius:10px 4px;background:#fff0e8;color:#a54b37;font-size:8px}.sheet-footer{display:flex;margin-top:9px;gap:7px}.sheet-footer button{flex:1;min-height:36px;border:1px solid #d7ddd6;border-radius:10px 4px;background:#fff;color:#5c6d65;font-size:8px}.result-stage p{margin-top:9px;text-align:center}
 </style>
