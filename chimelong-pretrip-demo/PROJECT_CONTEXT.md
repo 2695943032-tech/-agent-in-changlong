@@ -439,22 +439,10 @@ pnpm check
 https://qiyucl.site
 ```
 
-服务器：
+生产部署信息：
 
 ```text
-root@103.242.2.204
-```
-
-远程项目目录：
-
-```text
-/var/www/chimelong-pretrip-demo
-```
-
-PM2 应用名：
-
-```text
-chimelong-pretrip
+由运行环境中的部署变量与运维平台管理，不在公开仓库记录主机地址、账号或目录。
 ```
 
 Nginx 反代：
@@ -536,7 +524,7 @@ deploy/nginx.conf.example
 如果新对话只想快速接上，可以直接复制下面这段：
 
 ```text
-这是一个长隆野生动物世界参赛 Demo，项目名“长隆奇遇伴侣 / 全周期空间智能动物 Agent 游园系统”。源码在 D:\ai创新大赛\chimelong-pretrip-demo，技术栈 Nuxt 4 + Vue 3 + TypeScript + pnpm + Vitest。线上域名 https://qiyucl.site，服务器 root@103.242.2.204，远程目录 /var/www/chimelong-pretrip-demo，PM2 应用名 chimelong-pretrip。
+这是一个长隆野生动物世界参赛 Demo，项目名“长隆奇遇伴侣 / 全周期空间智能动物 Agent 游园系统”。技术栈为 Nuxt 4 + Vue 3 + TypeScript + pnpm + Vitest，线上体验地址为 https://qiyucl.site。生产环境主机、账号、部署目录和进程信息由运维配置管理，不应写入公开材料。
 
 项目核心是贯穿游前、游中、游后的 AI 智慧游园体验：游前通过动物 Agent 对话采集同行人数、旅行节奏、入离园时间、动物优先级和餐饮需求，基于地图距离知识库生成路线；游中通过地图/GIS/geofence 模拟进入动物展区，自动唤醒对应动物 Agent，支持科普问答、观察任务、路线调整、休息/餐饮/厕所/服务导航；游后把真实游玩轨迹、对话、任务、徽章、照片和声音生成回忆星册、奇遇票根、AI 高清 bit 风纪念照和票根册。
 
