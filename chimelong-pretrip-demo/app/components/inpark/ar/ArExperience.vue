@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { CatalogResponse } from '../../../../shared/types/pretrip'
+import type { CatalogResponse, CompanionId } from '../../../../shared/types/pretrip'
 import type { ParkChatMessage, ParkChatResponse } from '../../../../shared/types/park'
 import { arCompanionScripts } from '../../../data/arCompanions'
 import ZoneChatComposer from '../zone/ZoneChatComposer.vue'
 import ArCameraStage from './ArCameraStage.vue'
+import ArCompanionSwitcher from './ArCompanionSwitcher.vue'
 
 const { data: catalog } = await useFetch<CatalogResponse>('/api/catalog', { key: 'ar-catalog-v2' })
 const park = useParkJourney()
@@ -17,20 +18,33 @@ const toast = shallowRef('')
 const chatMessages = ref<ParkChatMessage[]>([])
 const chatLoading = shallowRef(false)
 const chatError = shallowRef('')
+const selectedArCompanionId = shallowRef<CompanionId | null>(null)
 const sessionId = useState('park-chat-session-v1', () => `park-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`)
 let scanTimer: ReturnType<typeof setTimeout> | undefined
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let storyTimer: ReturnType<typeof setTimeout> | undefined
 
+const arCompanions = computed(() => (catalog.value?.companions ?? []).filter(item => item.id !== 'gorilla'))
 const activeCompanion = computed(() => {
-  const id = park.state.value.activeCompanionId ?? park.state.value.starterCompanionId ?? 'panda'
-  return catalog.value?.companions.find(item => item.id === id) ?? catalog.value?.companions[0] ?? null
+  const preferredId = selectedArCompanionId.value ?? park.state.value.activeCompanionId ?? park.state.value.starterCompanionId ?? 'panda'
+  return arCompanions.value.find(item => item.id === preferredId) ?? arCompanions.value[0] ?? null
 })
 const animal = computed(() => catalog.value?.animals.find(item => item.id === activeCompanion.value?.id) ?? catalog.value?.animals[0] ?? null)
 const script = computed(() => arCompanionScripts[activeCompanion.value?.id ?? 'panda'])
 const cameraVideo = computed(() => stage.value?.video ?? null)
 const modelAction = computed<'idle' | 'wave' | 'talk'>(() => chatLoading.value ? 'talk' : detected.value ? 'wave' : 'idle')
 const camera = useArCamera(cameraVideo)
+
+function selectArCompanion(companionId: CompanionId) {
+  if (companionId === 'gorilla' || companionId === activeCompanion.value?.id) return
+  selectedArCompanionId.value = companionId
+  park.switchCompanion(companionId)
+  chatMessages.value = []
+  chatError.value = ''
+  storyOpen.value = false
+  chatOpen.value = false
+  showToast(`已切换为${activeCompanion.value?.name ?? '新伙伴'}`)
+}
 
 function showToast(message: string) {
   toast.value = message
@@ -109,6 +123,12 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="ar-experience" :style="{ '--ar-accent': activeCompanion?.accent ?? '#d4a341' }">
+    <ArCompanionSwitcher
+      v-if="activeCompanion"
+      :companions="arCompanions"
+      :active-id="activeCompanion.id"
+      @select="selectArCompanion"
+    />
     <ArCameraStage
       ref="stage"
       :status="camera.status.value"

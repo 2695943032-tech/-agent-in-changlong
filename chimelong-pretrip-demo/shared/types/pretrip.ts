@@ -2,12 +2,13 @@ export type ScenarioId = 'normal' | 'peak' | 'rain'
 export type CompanionId = 'panda' | 'tiger' | 'koala' | 'elephant' | 'giraffe' | 'gorilla'
 export type PartyType = 'family' | 'couple' | 'friends' | 'solo' | 'unknown'
 export type Pace = 'slow' | 'balanced' | 'fast'
+export type ParkGate = 'north' | 'south'
 export type AnimalId = 'panda' | 'giraffe' | 'gorilla' | 'tiger' | 'elephant' | 'koala'
 export type RestaurantId = 'qinglong' | 'momo' | 'panda'
 export type DiningChoice = RestaurantId | 'none' | null
 export type PlanMode = 'rules' | 'deepseek-assisted'
 export type PoiKind = 'entrance' | 'animal' | 'restaurant'
-export type ChatStep = 'party' | 'pace' | 'time' | 'animals' | 'dining' | 'supplement' | 'confirm'
+export type ChatStep = 'party' | 'pace' | 'time' | 'gates' | 'dining' | 'supplement' | 'confirm'
 export type ChatActionType = 'view-map' | 'navigate' | 'add-plan' | 'show-schedule' | 'view-menu' | 'start-observation' | 'answer-quiz' | 'view-merch' | 'select-pickup'
 
 /** 聊天回复必须附带的可执行动作，避免只停留在说明文字。 */
@@ -121,6 +122,9 @@ export interface VisitorProfile {
   pace: Pace | null
   startTime: string | null
   endTime: string | null
+  entryGate: ParkGate | null
+  exitGate: ParkGate | null
+  takeNorthGateTrain: boolean | null
   animalPriority: AnimalId[]
   diningChoice: DiningChoice
   freeText: string
@@ -184,6 +188,10 @@ export interface PlanResponse {
   walkingMeters: number
   walkingMinutes: number
   queueMinutes: number
+  entryGate: ParkGate
+  exitGate: ParkGate
+  takeNorthGateTrain: boolean
+  trainCoveredAnimalIds: AnimalId[]
   userPriority: AnimalId[]
   actualAnimalOrder: AnimalId[]
   stops: PlanStop[]

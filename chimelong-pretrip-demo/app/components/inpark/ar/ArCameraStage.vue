@@ -39,7 +39,7 @@ defineExpose({ video })
       <div v-else class="target-lock"><span>已识别</span><strong>{{ animalName }}</strong><small>可信度 98.6%</small></div>
     </div>
     <Transition name="model-reveal">
-      <div v-if="detected" class="model-stage"><ArCompanionModel :companion-id="companionId" :action="modelAction" :accent="accent" /></div>
+      <div v-if="detected" class="model-stage"><ArCompanionModel :key="companionId" :companion-id="companionId" :action="modelAction" :accent="accent" /></div>
     </Transition>
     <Transition name="hud-fade"><div v-if="detected && recognitionHudVisible" class="spatial-tag left-tag"><i>01</i><span>建议观赏距离</span><strong>8.4 m</strong></div></Transition>
     <Transition name="hud-fade"><div v-if="detected && recognitionHudVisible" class="spatial-tag right-tag"><i>02</i><span>当前状态</span><strong>悠闲进食中</strong></div></Transition>

@@ -8,6 +8,7 @@ import type {
   PlanStop,
   Restaurant,
   SkippedAnimal,
+  ParkGate,
 } from '../../shared/types/pretrip'
 import {
   animals,
@@ -17,6 +18,7 @@ import {
   routeEdges,
   routeNodes,
 } from '../data/catalog'
+import { navigationRouteFromPosition } from '#shared/utils/parkGeo'
 
 const DEFAULT_START = '10:00'
 const DEFAULT_END = '22:00'
@@ -77,6 +79,18 @@ function travelMinutes(distanceMeters: number, pace: Pace): number {
   return Math.max(1, Math.ceil(distanceMeters / walkingSpeed(pace)))
 }
 
+// Surveyed POI for \"长隆野生动物世界北门\".
+const northGate = { longitude: 113.310704, latitude: 23.009179 }
+// Surveyed POI coordinate. A north-gate train itinerary becomes a walking
+// itinerary only after the visitor gets off here.
+const trainDropoff = { longitude: 113.308861, latitude: 23.008988 }
+
+function straightLineMeters(from: { longitude: number, latitude: number }, to: { longitude: number, latitude: number }) {
+  const latitudeScale = 111_320
+  const longitudeScale = latitudeScale * Math.cos(((from.latitude + to.latitude) / 2) * Math.PI / 180)
+  return Math.round(Math.hypot((from.longitude - to.longitude) * longitudeScale, (from.latitude - to.latitude) * latitudeScale) * 1.18)
+}
+
 function permutations<T>(items: T[]): T[][] {
   if (items.length <= 1) return [items]
   const result: T[][] = []
@@ -88,6 +102,21 @@ function permutations<T>(items: T[]): T[][] {
 }
 
 type SchedulablePoi = AnimalPoi | Restaurant
+
+function gateDistance(gate: ParkGate, poi: SchedulablePoi, fromTrainDropoff = false) {
+  if (gate === 'north' && fromTrainDropoff) {
+    return navigationRouteFromPosition(trainDropoff, {
+      id: poi.id,
+      kind: 'animal',
+      name: poi.name,
+      longitude: poi.longitude,
+      latitude: poi.latitude,
+    }).distanceMeters
+  }
+  return gate === 'north'
+    ? straightLineMeters(northGate, poi)
+    : shortestDistance('entrance', poi.nodeId)
+}
 
 interface Simulation {
   stops: PlanStop[]
@@ -111,14 +140,15 @@ function simulateSequence(
   priority: AnimalId[],
 ): Simulation | null {
   const stops: PlanStop[] = []
-  let currentNode = 'entrance'
+  let currentNode: string | null = request.profile.entryGate === 'south' ? 'entrance' : null
+  const startsAfterTrain = request.profile.entryGate === 'north' && request.profile.takeNorthGateTrain
   let currentMinutes = visitStart
   let walkingMeters = 0
   let walkingMinutes = 0
   let queueMinutes = 0
 
   for (const poi of sequence) {
-    const distanceMeters = shortestDistance(currentNode, poi.nodeId)
+    const distanceMeters = currentNode ? shortestDistance(currentNode, poi.nodeId) : gateDistance('north', poi, startsAfterTrain)
     const travel = travelMinutes(distanceMeters, pace)
     const queue = poi.queueMinutes[request.scenarioId]
     const open = toMinutes(poi.openTime)
@@ -159,6 +189,20 @@ function simulateSequence(
     currentNode = poi.nodeId
   }
 
+  // The selected departure gate is a hard final destination, so it influences
+  // both the route ranking and the total time rather than being added afterward.
+  const lastPoi = sequence.at(-1)
+  if (lastPoi) {
+    const exitDistance = request.profile.exitGate === 'south'
+      ? shortestDistance(lastPoi.nodeId, 'entrance')
+      : gateDistance('north', lastPoi)
+    const exitTravel = travelMinutes(exitDistance, pace)
+    if (currentMinutes + exitTravel > visitEnd) return null
+    walkingMeters += exitDistance
+    walkingMinutes += exitTravel
+    currentMinutes += exitTravel
+  }
+
   return {
     stops,
     walkingMeters,
@@ -179,8 +223,17 @@ function bestSimulation(
   priority: AnimalId[],
 ): Simulation | null {
   let best: Simulation | null = null
+  const isOneWayGateJourney = request.profile.entryGate !== request.profile.exitGate
+  // South Gate sits beside the chimpanzee branch. Visit it first, then keep
+  // progressing north through the remaining zones instead of returning south.
+  const southToNorthOrder: AnimalId[] = ['gorilla', 'elephant', 'panda', 'koala', 'giraffe', 'tiger']
+  const northToSouthOrder: AnimalId[] = ['tiger', 'giraffe', 'koala', 'panda', 'elephant', 'gorilla']
+  const oneWayOrder = request.profile.entryGate === 'south' ? southToNorthOrder : northToSouthOrder
+  const orderedAnimals = isOneWayGateJourney
+    ? [...selectedAnimals].sort((a, b) => oneWayOrder.indexOf(a.id) - oneWayOrder.indexOf(b.id))
+    : selectedAnimals
 
-  for (const animalOrder of permutations(selectedAnimals)) {
+  for (const animalOrder of (isOneWayGateJourney ? [orderedAnimals] : permutations(orderedAnimals))) {
     const sequences: SchedulablePoi[][] = restaurant
       ? Array.from({ length: animalOrder.length + 1 }, (_, index) => {
           const sequence: SchedulablePoi[] = [...animalOrder]
@@ -216,11 +269,12 @@ export function buildPlan(request: PlanRequest): PlanResponse {
   }
   if (visitEnd - visitStart < 240) throw new Error('游玩时长至少需要4小时')
 
-  const userSelectedPriority = uniqueValidPriority(request.profile.animalPriority)
-  const priority = userSelectedPriority.length > 0
-    ? userSelectedPriority
-    : [...companion.recommendedAnimals]
-  const targetStops = paceOptions.find(item => item.id === pace)?.targetStops ?? 5
+  // Gates determine the visit order. Cover every animal theme zone where time permits.
+  const trainCoveredAnimalIds: AnimalId[] = request.profile.entryGate === 'north' && request.profile.takeNorthGateTrain
+    ? ['panda', 'tiger']
+    : []
+  const priority = animals.map(animal => animal.id).filter(id => !trainCoveredAnimalIds.includes(id))
+  const targetStops = priority.length
   const restaurant = request.profile.diningChoice && request.profile.diningChoice !== 'none'
     ? restaurants.find(item => item.id === request.profile.diningChoice) ?? null
     : null
@@ -265,14 +319,18 @@ export function buildPlan(request: PlanRequest): PlanResponse {
     mode: 'rules',
     scenarioId: request.scenarioId,
     companion,
-    title: `${companion.name}为你安排的${partyLabel}路线`,
-    summary: `保留${actualAnimalOrder.length}个高优先级动物点位，按地图距离重新排序，预计步行${simulation.walkingMeters}米。`,
+    title: `${companion.name}为你安排的${partyLabel}闭环路线`,
+    summary: `${request.profile.entryGate === 'north' ? '北门' : '南门'}入园，尽量覆盖${actualAnimalOrder.length}个动物主题展区，最后引导至${request.profile.exitGate === 'north' ? '北门' : '南门'}离园。${trainCoveredAnimalIds.length ? '已将小火车车览的熊猫村、虎园从步行段移除。' : ''}`,
     startTime,
     endTime,
     totalMinutes: simulation.finishMinutes - visitStart,
     walkingMeters: simulation.walkingMeters,
     walkingMinutes: simulation.walkingMinutes,
     queueMinutes: simulation.queueMinutes,
+    entryGate: request.profile.entryGate!,
+    exitGate: request.profile.exitGate!,
+    takeNorthGateTrain: Boolean(request.profile.takeNorthGateTrain),
+    trainCoveredAnimalIds,
     userPriority: priority,
     actualAnimalOrder,
     stops: simulation.stops,

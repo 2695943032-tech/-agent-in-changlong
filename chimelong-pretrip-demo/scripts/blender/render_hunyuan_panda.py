@@ -8,9 +8,10 @@ from mathutils import Vector
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MODEL = os.environ.get("PANDA_MODEL", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-base-v1.glb"))
-OUTPUT = os.environ.get("PANDA_RENDER", os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png"))
-BLEND_OUTPUT = os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-hunyuan-clay-base-v1.blend"))
+MODEL = os.environ.get("COMPANION_MODEL", os.environ.get("PANDA_MODEL", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-base-v1.glb")))
+OUTPUT = os.environ.get("COMPANION_RENDER", os.environ.get("PANDA_RENDER", os.path.join(ROOT, "art", "companions", "panda", "references", "panda-hunyuan-preview-v1.png")))
+BLEND_OUTPUT = os.environ.get("COMPANION_BLEND", os.environ.get("PANDA_BLEND", os.path.join(ROOT, "art", "companions", "panda", "wip", "hunyuan", "panda-hunyuan-clay-base-v1.blend")))
+FRONT_RENDER = os.environ.get("COMPANION_FRONT_RENDER") == "1"
 
 
 def material(name, color, roughness=0.72, color_attribute=None):
@@ -78,10 +79,10 @@ for location, energy, size, color in [
     light.data.color = color
     point_at(light, (0, 0, 1.0))
 
-bpy.ops.object.camera_add(location=(3.0, -5.8, 2.8))
+bpy.ops.object.camera_add(location=((0.0, -6.0, 2.25) if FRONT_RENDER else (3.0, -5.8, 2.8)))
 camera = bpy.context.object
-camera.data.lens = 62
-point_at(camera, (0, 0, 1.05))
+camera.data.lens = 68 if FRONT_RENDER else 62
+point_at(camera, (0, 0, 1.15 if FRONT_RENDER else 1.05))
 bpy.context.scene.camera = camera
 
 scene = bpy.context.scene

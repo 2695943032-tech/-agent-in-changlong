@@ -7,6 +7,10 @@ const props = defineProps<{ companionId: CompanionId, action: 'idle' | 'wave' | 
 const canvas = useTemplateRef<HTMLCanvasElement>('modelCanvas')
 let renderer: THREE.WebGLRenderer | null = null
 let frameId = 0
+let mixer: THREE.AnimationMixer | null = null
+let activeClip: THREE.AnimationAction | null = null
+let loadedModel: THREE.Group | null = null
+let resizeObserver: ResizeObserver | null = null
 
 function material(color: THREE.ColorRepresentation) {
   return new THREE.MeshStandardMaterial({ color, roughness: .72, metalness: .02 })
@@ -103,6 +107,54 @@ async function loadDetailedPanda() {
   return group
 }
 
+const riggedModelPaths: Partial<Record<CompanionId, string>> = {
+  tiger: '/models/companions/tiger-companion-ar-v6.glb?v=6',
+  elephant: '/models/companions/elephant-companion-ar-v3.glb?v=3',
+  koala: '/models/companions/koala-companion-ar-v20.glb?v=20',
+  giraffe: '/models/companions/giraffe-companion-ar-v5.glb?v=5',
+}
+
+async function loadRiggedCompanion(id: CompanionId) {
+  const path = riggedModelPaths[id]
+  if (!path) return null
+  const gltf = await new GLTFLoader().loadAsync(path)
+  const group = gltf.scene
+  group.updateMatrixWorld(true)
+  const initialBox = new THREE.Box3().setFromObject(group)
+  const targetHeight = id === 'giraffe' ? 2.45 : id === 'elephant' ? 2.12 : 2.18
+  const scale = targetHeight / Math.max(initialBox.getSize(new THREE.Vector3()).y, .001)
+  group.scale.setScalar(scale)
+  group.userData.baseScaleY = scale
+  group.updateMatrixWorld(true)
+  const box = new THREE.Box3().setFromObject(group)
+  const center = box.getCenter(new THREE.Vector3())
+  group.position.set(-center.x, -.78 - box.min.y, -center.z)
+  group.userData.baseY = group.position.y
+  group.userData.clips = gltf.animations
+  // Static high-detail companions keep the existing procedural idle/talk motion.
+  // Rigged assets use their authored clips when available.
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.castShadow = true
+      child.receiveShadow = true
+    }
+  })
+  return group
+}
+
+function playModelAction(action: 'idle' | 'wave' | 'talk') {
+  if (!mixer || !loadedModel) return
+  const clips = loadedModel.userData.clips as THREE.AnimationClip[] | undefined
+  const clipName = action === 'wave' ? 'greeting' : action
+  const clip = clips?.find(item => item.name === clipName) ?? clips?.find(item => item.name === 'idle')
+  if (!clip) return
+  const next = mixer.clipAction(clip)
+  if (next === activeClip) return
+  next.reset().fadeIn(.28).play()
+  activeClip?.fadeOut(.28)
+  activeClip = next
+}
+
 function disposeGroup(group: THREE.Group) {
   group.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return
@@ -122,7 +174,18 @@ async function mountScene() {
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(31, 1, .1, 100); camera.position.set(0, .75, 6.4)
   renderer = new THREE.WebGLRenderer({ canvas: canvas.value, alpha: true, antialias: true, powerPreference: 'high-performance' })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(canvas.value.clientWidth, canvas.value.clientHeight, false); renderer.shadowMap.enabled = true
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = true
+  const resize = () => {
+    if (!canvas.value || !renderer) return
+    const width = Math.max(canvas.value.clientWidth, 1)
+    const height = Math.max(canvas.value.clientHeight, 1)
+    camera.aspect = width / height
+    camera.updateProjectionMatrix()
+    renderer.setSize(width, height, false)
+  }
+  resize()
+  resizeObserver = new ResizeObserver(resize)
+  resizeObserver.observe(canvas.value)
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.48
   scene.add(new THREE.HemisphereLight('#fff8e8', '#456b61', 3.5))
   const key = new THREE.DirectionalLight('#fff1ce', 5.2); key.position.set(3.4, 5.5, 4.5); key.castShadow = true; scene.add(key)
@@ -139,11 +202,26 @@ async function mountScene() {
       console.warn('Detailed panda model failed to load; using stable fallback.', error)
     }
   }
+  else if (riggedModelPaths[props.companionId]) {
+    try {
+      const riggedModel = await loadRiggedCompanion(props.companionId)
+      if (riggedModel) {
+        scene.remove(model); disposeGroup(model)
+        model = riggedModel; scene.add(model)
+        loadedModel = model
+        mixer = new THREE.AnimationMixer(model)
+        playModelAction(props.action)
+      }
+    }
+    catch (error) {
+      console.warn('Rigged companion failed to load; using stable fallback.', error)
+    }
+  }
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(.92, 48), new THREE.MeshBasicMaterial({ color: '#071712', transparent: true, opacity: .28, depthWrite: false })); shadow.scale.set(1.35, .42, 1); shadow.rotation.x = -Math.PI / 2; shadow.position.set(0, -.78, .08); scene.add(shadow)
   const halo = new THREE.Mesh(new THREE.TorusGeometry(1.04, .012, 8, 64), new THREE.MeshBasicMaterial({ color: props.accent, transparent: true, opacity: .34 })); halo.rotation.x = Math.PI / 2; halo.position.y = -.76; scene.add(halo)
   const clock = new THREE.Clock()
   const animate = () => {
-    const t = clock.getElapsedTime(); const baseY = model.userData.baseY ?? (props.companionId === 'giraffe' ? -.45 : -.25)
+    const delta = clock.getDelta(); const t = clock.elapsedTime; mixer?.update(delta); const baseY = model.userData.baseY ?? (props.companionId === 'giraffe' ? -.45 : -.25)
     const actionEnergy = props.action === 'wave' ? 1 : props.action === 'talk' ? .7 : .28
     const targetY = baseY + Math.sin(t * 1.55) * (.012 + actionEnergy * .012) + Math.max(0, Math.sin(t * 3.1)) * actionEnergy * .008
     model.position.y += (targetY - model.position.y) * .075
@@ -164,7 +242,8 @@ async function mountScene() {
 }
 
 onMounted(mountScene)
-onBeforeUnmount(() => { cancelAnimationFrame(frameId); renderer?.dispose(); renderer = null })
+watch(() => props.action, playModelAction)
+onBeforeUnmount(() => { cancelAnimationFrame(frameId); resizeObserver?.disconnect(); resizeObserver = null; mixer?.stopAllAction(); mixer = null; activeClip = null; loadedModel = null; renderer?.dispose(); renderer = null })
 </script>
 
 <template><canvas ref="modelCanvas" class="companion-model" :aria-label="`${props.companionId} 3D 动物伙伴模型`" /></template>

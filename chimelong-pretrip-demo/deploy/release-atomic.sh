@@ -28,6 +28,14 @@ if test -f "$current/.env"; then
   cp -a "$current/.env" "$stage/.env"
 fi
 
+# Runtime models are kept on the server. Preserve any model that is not part
+# of the uploaded source archive so ordinary code-only releases do not remove
+# existing AR companions.
+if test -d "$current/public/models/companions"; then
+  mkdir -p "$stage/public/models/companions"
+  cp -an "$current/public/models/companions/." "$stage/public/models/companions/"
+fi
+
 cd "$stage"
 pnpm install --frozen-lockfile
 pnpm build

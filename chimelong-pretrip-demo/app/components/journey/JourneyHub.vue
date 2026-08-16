@@ -48,7 +48,7 @@ function activatePhase(phaseId: JourneyPhase['id']) {
         <span><strong>奇遇伴侣</strong><small>CHIMELONG · SPATIAL AGENT</small></span>
       </NuxtLink>
       <div class="nav-status"><i /> LIVE SYSTEM <span>全周期智能游园</span></div>
-      <NuxtLink class="nav-entry" to="/pretrip?tab=chat">问问团团 <span>↗</span></NuxtLink>
+      <NuxtLink class="nav-entry" to="/admin" aria-label="进入工作人员运营后台">工作人员后台 <span aria-hidden="true">↗</span></NuxtLink>
     </header>
 
     <section id="journey-main" class="brand-hero">

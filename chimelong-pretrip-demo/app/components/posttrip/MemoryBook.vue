@@ -17,6 +17,8 @@ const emit = defineEmits<{ finish: [] }>()
 const activeTab = shallowRef<MemoryTab>('route')
 const reelOpen = shallowRef(false)
 const memoryTabs = useTemplateRef<HTMLElement>('memoryTabs')
+const route = useRoute()
+const returnTo = computed(() => route.query.from === 'chat' ? '/pretrip?tab=chat' : '/me')
 
 const tabs: Array<{ id: MemoryTab, index: string, label: string }> = [
   { id: 'route', index: '01', label: '路线故事' },
@@ -37,6 +39,15 @@ const activeTabMeta = computed(() => tabs.find(tab => tab.id === activeTab.value
 
 function scrollMemoryTabs(direction: -1 | 1) {
   memoryTabs.value?.scrollBy({ left: direction * 184, behavior: 'smooth' })
+}
+
+async function shareMemory() {
+  const shareData = {
+    title: '我的长隆奇遇票根',
+    text: `${companion.value.name}陪我完成了今天的动物园奇遇。`,
+  }
+  if (navigator.share) await navigator.share(shareData)
+  else await navigator.clipboard?.writeText(`${shareData.title}：${shareData.text}`)
 }
 
 async function selectMemoryTab(tabId: MemoryTab) {
@@ -64,7 +75,7 @@ const companionSummary = computed(() => {
 <template>
   <main class="memory-book" :style="{ '--memory-accent': companion.accent }">
     <header class="memory-nav">
-      <button type="button" aria-label="返回我的页面" @click="navigateTo('/me')">←</button>
+      <button type="button" aria-label="返回上一入口" @click="navigateTo(returnTo)">←</button>
       <div>
         <span>03 · JOURNEY MEMORY</span>
         <strong>回忆星册</strong>
@@ -83,14 +94,6 @@ const companionSummary = computed(() => {
         <p>{{ companionSummary }}</p>
       </div>
       <img :src="companion.chatCharacterImage" :alt="`${companion.name}陪伴本次旅程`">
-      <button v-if="!completed" class="finish-journey" type="button" @click="emit('finish')">结束旅程，生成完整回忆</button>
-    </section>
-
-    <section class="memory-stats" aria-label="旅程统计">
-      <article><strong>{{ journey.actualJourney.visitedZoneIds.length }}</strong><span>到访展区</span></article>
-      <article><strong>{{ journey.actualJourney.badgeZoneIds.length }}</strong><span>奇遇徽章</span></article>
-      <article><strong>{{ (journey.actualJourney.walkingDistanceMeters / 1000).toFixed(1) }}</strong><span>公里足迹</span></article>
-      <article><strong>{{ journey.actualJourney.unlockedCompanionIds.length }}</strong><span>同行伙伴</span></article>
     </section>
 
     <div class="memory-tab-shell">
@@ -206,8 +209,8 @@ const companionSummary = computed(() => {
             </header>
             <JourneyTicketPreview :ticket="ticket" :companion="companion" />
             <div class="ticket-actions">
-              <NuxtLink to="/posttrip/ticket">{{ journey.ticket ? '编辑 / 查看我的票根' : '生成奇遇票根' }}</NuxtLink>
-              <NuxtLink to="/posttrip/tickets">查看票根册</NuxtLink>
+              <NuxtLink to="/posttrip/ticket">{{ journey.ticket ? '保存 / 编辑票根' : '生成并保存票根' }}</NuxtLink>
+              <button type="button" @click="shareMemory">分享回忆</button>
             </div>
           </article>
         </div>
@@ -226,21 +229,15 @@ const companionSummary = computed(() => {
 .memory-nav span { color: #dfb85f; font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .memory-nav strong { font-family: var(--font-display); font-size: 15px; }
 .memory-nav a { color: #dfb85f; font-size: 9px; font-weight: 900; text-decoration: none; }
-.memory-hero { position: relative; flex: 0 0 clamp(186px,28dvh,235px); padding: 18px 18px 52px; overflow: hidden; background: radial-gradient(circle at 78% 22%,color-mix(in srgb,var(--memory-accent) 23%,transparent),transparent 28%),linear-gradient(155deg,#102b23,#1d4135); color: #fff; }
+.memory-hero { position: relative; flex: 0 0 clamp(145px,21dvh,172px); padding: 16px 18px 14px; overflow: hidden; background: radial-gradient(circle at 78% 22%,color-mix(in srgb,var(--memory-accent) 23%,transparent),transparent 28%),linear-gradient(155deg,#102b23,#1d4135); color: #fff; }
 .hero-index { display: flex; justify-content: space-between; color: rgba(255,255,255,.42); font: 700 8px ui-monospace,monospace; }
-.hero-copy { position: relative; z-index: 2; width: 78%; margin-top: 24px; }
+.hero-copy { position: relative; z-index: 2; width: 72%; margin-top: 18px; }
 .hero-copy > span { color: #dfb85f; font-size: 7px; font-weight: 900; letter-spacing: .13em; }
 .hero-copy h1 { margin: 8px 0; font-family: var(--font-display); font-size: clamp(25px,8.2vw,34px); line-height: 1.12; letter-spacing: 0; }
 .hero-copy em { display: block; color: #dfb85f; font-style: normal; }
 .hero-copy p { display: -webkit-box; margin: 0; overflow: hidden; color: rgba(255,255,255,.68); font-size: 9px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.memory-hero > img { position: absolute; right: -55px; bottom: -48px; width: 220px; height: 245px; object-fit: contain; opacity: .52; filter: drop-shadow(0 24px 22px rgba(0,0,0,.24)); }
-.finish-journey { position: absolute; z-index: 3; right: 14px; bottom: 12px; left: 14px; min-height: 36px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px 4px 12px 4px; background: #dfb85f; color: #16332a; font-size: 9px; font-weight: 900; }
-.memory-stats { position: relative; z-index: 4; display: grid; flex: 0 0 auto; grid-template-columns: repeat(4,1fr); margin: -36px 14px 0; padding: 13px 4px; border-radius: 18px 7px 18px 7px; background: #fffaf0; box-shadow: 0 16px 30px rgba(31,45,37,.12); }
-.memory-stats article { display: grid; place-items: center; gap: 1px; }
-.memory-stats article + article { border-left: 1px solid rgba(45,55,48,.1); }
-.memory-stats strong { color: #a85c43; font-family: var(--font-display); font-size: 18px; }
-.memory-stats span { color: #757b75; font-size: 7px; }
-.memory-tab-shell { display: grid; flex: 0 0 auto; grid-template-columns: 30px minmax(0,1fr) 30px; align-items: center; padding: 9px 8px 8px; gap: 4px; }
+.memory-hero > img { position: absolute; right: -34px; bottom: -56px; width: 190px; height: 220px; object-fit: contain; opacity: .58; filter: drop-shadow(0 24px 22px rgba(0,0,0,.24)); }
+.memory-tab-shell { display: grid; flex: 0 0 auto; grid-template-columns: 30px minmax(0,1fr) 30px; align-items: center; padding: 12px 8px 8px; gap: 4px; }
 .tab-scroll-button { display: grid; width: 28px; height: 42px; place-items: center; border: 1px solid rgba(37,54,46,.12); border-radius: 12px 4px 12px 4px; background: rgba(255,255,255,.72); color: #34463e; font-size: 20px; font-weight: 900; box-shadow: 0 8px 18px rgba(37,54,46,.06); cursor: pointer; }
 .tab-scroll-button:hover { border-color: color-mix(in srgb,var(--memory-accent) 50%,transparent); background: #fff8eb; color: var(--memory-accent); }
 .memory-tabs { display: flex; min-width: 0; padding: 0 1px 5px; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; scrollbar-color: color-mix(in srgb,var(--memory-accent) 52%,transparent) rgba(37,54,46,.08); scrollbar-width: thin; }
@@ -292,15 +289,13 @@ const companionSummary = computed(() => {
 .memory-reel-entry p { margin: 10px 0 0; color: rgba(255,255,255,.68); font-size: 10px; line-height: 1.7; }
 .memory-reel-entry button { display: grid; width: 90px; height: 118px; place-content: center; gap: 8px; border: 0; border-radius: 20px 7px 20px 7px; background: #a85c43; color: #fff; font-size: 9px; font-weight: 900; }
 .memory-reel-entry i { font-size: 20px; font-style: normal; }
-.ticket-entry { display: grid; grid-template-rows: auto minmax(0,1fr) auto; gap: 10px; }
+.ticket-entry { display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 12px; }
 .ticket-entry header p { margin: 6px 0 0; color: #6f7770; font-size: 9px; }
-.ticket-entry :deep(.ticket) { align-self: center; }
+.ticket-entry :deep(.ticket) { align-self: start; }
 .ticket-actions { display: grid; grid-template-columns: 1.25fr .75fr; gap: 7px; }
-.ticket-actions a { display: grid; min-height: 42px; padding: 8px; place-items: center; border-radius: 12px 4px 12px 4px; background: #253b32; color: #fff; font-size: 9px; font-weight: 900; text-align: center; text-decoration: none; }
-.ticket-actions a:last-child { border: 1px solid rgba(45,55,48,.13); background: transparent; color: #34463e; }
-.memory-panel-enter-active,.memory-panel-leave-active { transition: opacity .18s ease,transform .22s var(--ease-out); }
-.memory-panel-enter-from { opacity: 0; transform: translateY(8px); }
-.memory-panel-leave-to { opacity: 0; transform: translateY(-6px); }
+.ticket-actions a,.ticket-actions button { display: grid; min-height: 42px; padding: 8px; place-items: center; border: 0; border-radius: 12px 4px 12px 4px; background: #253b32; color: #fff; font-size: 9px; font-weight: 900; text-align: center; text-decoration: none; }
+.ticket-actions button { border: 1px solid rgba(45,55,48,.13); background: transparent; color: #34463e; }
+.memory-panel-enter-active,.memory-panel-leave-active { transition: none; }
 
 @media (max-height: 720px) {
   .memory-hero { flex-basis: 168px; padding-top: 14px; }
