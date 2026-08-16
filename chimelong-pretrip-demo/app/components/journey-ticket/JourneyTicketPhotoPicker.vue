@@ -61,6 +61,14 @@ function pointerUp() {
       <button type="button" @click="emit('reset')">恢复默认</button>
     </header>
 
+    <div class="style-section-heading"><strong>选择 AI 生成风格</strong><small>游中和游后共用 9 张生成额度</small></div>
+    <div class="style-cards">
+      <button v-for="style in imageStyles" :key="style.id" type="button" :class="{ active: selectedStyle === style.id }" @click="selectedStyle = style.id">
+        <b>{{ style.id === '8bit' ? '8' : style.id === 'ancient' ? '古' : style.id === '2d' ? '2D' : style.id === 'zine' ? '册' : '＋' }}</b><span><strong>{{ style.label }}</strong><small>{{ style.detail }}</small></span>
+      </button>
+    </div>
+    <label v-if="selectedStyle === 'custom'" class="custom-prompt"><span>自定义提示词（最多 500 字）</span><textarea v-model="customPrompt" maxlength="500" placeholder="描述你想生成的画面…"></textarea><small>{{ customPrompt.length }}/500</small></label>
+
     <div
       class="crop-stage"
       :class="{ empty: !photoUrl }"
@@ -91,12 +99,6 @@ function pointerUp() {
       <input ref="photoInput" class="visually-hidden" type="file" accept="image/*" @change="onFile">
     </div>
 
-    <div class="style-cards">
-      <button v-for="style in imageStyles" :key="style.id" type="button" :class="{ active: selectedStyle === style.id }" @click="selectedStyle = style.id">
-        <b>{{ style.id === '8bit' ? '8' : style.id === 'ancient' ? '古' : style.id === '2d' ? '2D' : style.id === 'zine' ? '册' : '＋' }}</b><span><strong>{{ style.label }}</strong><small>{{ style.detail }}</small></span>
-      </button>
-    </div>
-    <label v-if="selectedStyle === 'custom'" class="custom-prompt"><span>自定义提示词（最多 500 字）</span><textarea v-model="customPrompt" maxlength="500" placeholder="描述你想生成的画面…"></textarea><small>{{ customPrompt.length }}/500</small></label>
     <button class="pixel-transform" type="button" :disabled="!selectedPhotoId || uploading || transforming || (selectedStyle === 'custom' && !customPrompt.trim())" @click="emit('transform', selectedStyle, selectedStyle === 'custom' ? customPrompt : '')"><i>▦</i><span><strong>{{ transforming ? '正在生成照片…' : `生成${imageStyles.find(item => item.id === selectedStyle)?.label}` }}</strong><small>左下角自动添加长隆奇遇水印</small></span></button>
   </section>
 </template>
@@ -128,7 +130,8 @@ header button { border: 0; background: none; color: #77736a; font-size: 9px; }
 .pixel-transform strong { font-size: 9px; }
 .pixel-transform small { color: #777d77; font-size: 7px; }
 .pixel-transform:disabled { opacity: .48; }
-.style-cards { display: grid; grid-template-columns: 1fr 1fr; margin-top: 11px; gap: 6px; }
+.style-section-heading { display: flex; align-items: end; justify-content: space-between; margin-top: 12px; }.style-section-heading strong { color: #31453b; font-size: 10px; }.style-section-heading small { color: #7c817b; font-size: 7px; }
+.style-cards { display: grid; grid-template-columns: 1fr 1fr; margin-top: 7px; gap: 6px; }
 .style-cards button { display: grid; min-height: 68px; grid-template-columns: 28px 1fr; align-items: center; padding: 8px; gap: 7px; border: 1px solid rgba(51,54,47,.13); border-radius: 12px 4px; background: #f7f2e8; color: #30433a; text-align: left; }
 .style-cards button.active { border: 2px solid var(--memory-accent); padding: 7px; background: color-mix(in srgb,var(--memory-accent) 8%,#fff); }
 .style-cards b { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 9px 3px; background: #2b4439; color: #f4d078; font-size: 9px; }
