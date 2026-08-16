@@ -1,7 +1,8 @@
 <script setup lang="ts">
 const route = useRoute()
 
-const hidden = computed(() => route.path.startsWith('/admin'))
+// 编辑票根是沉浸式工作台：它有自己的保存/入册底栏，不能再叠加全局导航。
+const hidden = computed(() => route.path.startsWith('/admin') || /^\/posttrip\/ticket\/?$/.test(route.path))
 const activeTab = computed(() => {
   if (route.path === '/') return 'home'
   if (route.path === '/me' || route.path.startsWith('/posttrip')) return 'me'

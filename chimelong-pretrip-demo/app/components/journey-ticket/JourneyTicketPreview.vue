@@ -16,14 +16,32 @@ const ticketStyle = computed(() => ({
   '--cover-scale': String(props.ticket.coverTransform.scale),
 }))
 
+const fullBleedCoverStyle = computed(() => props.ticket.template === 'companion'
+  ? { inset: '0', borderRadius: '0', clipPath: 'none' }
+  : undefined)
+
+const fullBleedPhotoStyle = computed(() => props.ticket.template === 'companion'
+  ? {
+      position: 'absolute' as const,
+      inset: '0',
+      display: 'block',
+      width: '100%',
+      height: '100%',
+      maxWidth: 'none',
+      borderRadius: '0',
+      clipPath: 'none',
+      objectFit: 'cover' as const,
+    }
+  : undefined)
+
 const distanceLabel = computed(() => `${(props.ticket.statsSnapshot.walkingDistanceMeters / 1000).toFixed(1)} km`)
 </script>
 
 <template>
   <article class="ticket" :class="[`template-${ticket.template}`, { exporting: exportMode }]" :style="ticketStyle">
     <section class="ticket-visual">
-      <div class="cover-wrap">
-        <img v-if="photoUrl" class="cover-photo" :src="photoUrl" alt="票根封面照片">
+      <div class="cover-wrap" :style="fullBleedCoverStyle">
+        <img v-if="photoUrl" class="cover-photo" :style="fullBleedPhotoStyle" :src="photoUrl" alt="票根封面照片">
         <div v-else class="cover-fallback"><i /><img :src="companion.chatCharacterImage" :alt="`${companion.name}伙伴插画`"></div>
       </div>
       <div class="visual-copy">
@@ -77,7 +95,7 @@ const distanceLabel = computed(() => `${(props.ticket.statsSnapshot.walkingDista
 dl { display: grid; margin: 0; gap: 2px; }dl div { display: flex; justify-content: space-between; gap: 4px; }dd { margin: 0; font-size: clamp(4px,1.35vw,6px); font-weight: 800; white-space: nowrap; }
 .barcode { display: flex; height: 15px; align-items: stretch; justify-content: center; gap: 1px; overflow: hidden; }.barcode i { background: #26362f; }
 code { overflow: hidden; color: #5f6b65; font-size: clamp(4px,1.15vw,5px); text-align: center; text-overflow: ellipsis; white-space: nowrap; }
-.template-companion .ticket-visual { background: var(--ticket-accent); }.template-companion .cover-wrap { inset: 22% 4% 4% 44%; border-radius: 50% 9px 9px 50%; }.template-companion .cover-wrap::after { display: none; }.template-companion .visual-copy { width: 58%; align-content: start; padding-top: 14px; }.template-companion .visual-copy h3 { color: #fff; }.template-companion .companion-seal { right: auto; left: 12px; bottom: 10px; width: 52px; height: 52px; }
+.template-companion .ticket-visual { background: var(--ticket-accent); }.template-companion .cover-wrap { inset: 0 !important; border-radius: 0 !important; }.template-companion .cover-photo { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; max-width: none; }.template-companion .visual-copy { width: 58%; align-content: start; padding-top: 14px; }.template-companion .visual-copy h3 { color: #fff; }.template-companion .companion-seal { right: auto; left: 12px; bottom: 10px; width: 52px; height: 52px; }
 .template-expedition { background: #e7ddc7; }.template-expedition .cover-wrap { inset: 9px 42% 9px 9px; border: 1px solid rgba(36,54,46,.28); }.template-expedition .visual-copy { width: 48%; margin-left: 52%; align-content: center; padding: 10px; }.template-expedition .visual-copy h3 { color: #26362f; }.template-expedition .visual-copy span,.template-expedition .visual-copy p { color: #6d4f2b; }.template-expedition .companion-seal { display: none; }
 .template-stamp { grid-template-columns: 1fr; aspect-ratio: .72/1; max-width: 62%; margin: 0 auto; border-radius: 3px; outline: 7px dotted #f8f0de; outline-offset: -3px; }.template-stamp .ticket-visual { min-height: 70%; }.template-stamp .tear-line { display: none; }.template-stamp .ticket-stub { grid-template-columns: 1fr 1fr; min-height: 30%; padding: 8px 12px; }.template-stamp .ticket-stub dl,.template-stamp .ticket-stub .barcode { display: none; }.template-stamp .ticket-stub code { grid-column: 1/-1; }.template-stamp .visual-copy { width: 90%; }.template-stamp .companion-seal { width: 52px; height: 52px; }
 .exporting { box-shadow: none; }

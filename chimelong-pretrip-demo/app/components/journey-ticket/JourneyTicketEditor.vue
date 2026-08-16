@@ -240,16 +240,20 @@ async function addToAlbum() {
     </main>
 
     <footer class="editor-footer">
-      <p v-if="feedback" aria-live="polite">{{ feedback }}</p>
-      <button class="album-action" type="button" :disabled="addingToAlbum || transforming" @click="addToAlbum">
-        {{ addingToAlbum ? '正在入册…' : '加入票根册' }}
-      </button>
+      <p v-if="feedback" class="editor-feedback" aria-live="polite">{{ feedback }}</p>
+      <div class="editor-footer-row">
+        <span class="editor-status"><small>正在编辑</small><strong>{{ activeTabMeta.label }}</strong></span>
+        <button class="album-action" type="button" :disabled="addingToAlbum || transforming" @click="addToAlbum">
+          {{ addingToAlbum ? '正在入册…' : '加入票根册' }}
+        </button>
+      </div>
     </footer>
   </section>
 </template>
 
 <style scoped>
 .ticket-editor { display: flex; width: 100%; max-width: 480px; height: 100dvh; margin: 0 auto; overflow: hidden; flex-direction: column; background: radial-gradient(circle at 84% 0,color-mix(in srgb,var(--memory-accent) 16%,transparent),transparent 26%),#eee9df; color: #273a32; }
+:global(.mobile-tab-bar) { display: none !important; }
 .editor-header { display: grid; flex: 0 0 auto; grid-template-columns: 42px 1fr auto; align-items: center; padding: max(12px,env(safe-area-inset-top)) 14px 11px; gap: 10px; border-bottom: 1px solid rgba(37,54,46,.1); background: rgba(247,243,234,.86); backdrop-filter: blur(16px); }
 .editor-header > button { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid rgba(37,54,46,.14); border-radius: 14px 5px 14px 5px; background: #fff; color: #26362f; font-weight: 900; }
 .editor-header div { display: grid; min-width: 0; gap: 1px; }
@@ -261,14 +265,14 @@ async function addToAlbum() {
 .preview-stage { flex: 0 0 clamp(138px,32dvh,214px); min-width: 0; padding: 14px 14px 8px; overflow: hidden; }
 .preview-stage :deep(.ticket) { max-height: 100%; margin: 0 auto; }
 .preview-stage :deep(.template-stamp) { max-height: 100%; max-width: 42%; }
-.editor-tabs { display: flex; flex: 0 0 auto; min-width: 0; padding: 3px 10px 8px; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.editor-tabs button { display: grid; flex: 0 0 auto; min-width: 82px; min-height: 43px; align-content: center; padding: 7px 9px; border: 1px solid rgba(37,54,46,.1); border-radius: 12px 4px 12px 4px; background: rgba(255,255,255,.58); color: #58635d; text-align: left; box-shadow: 0 8px 18px rgba(37,54,46,.05); }
+.editor-tabs { display: grid; flex: 0 0 auto; grid-template-columns: repeat(5,minmax(0,1fr)); min-width: 0; padding: 4px 10px 10px; gap: 6px; }
+.editor-tabs button { display: grid; min-width: 0; min-height: 56px; place-content: center; justify-items: center; padding: 7px 4px; gap: 4px; border: 1px solid rgba(37,54,46,.1); border-radius: 12px 4px 12px 4px; background: rgba(255,255,255,.58); color: #58635d; text-align: center; box-shadow: 0 8px 18px rgba(37,54,46,.05); }
 .editor-tabs button.active { border-color: color-mix(in srgb,var(--memory-accent) 70%,transparent); background: #fff8eb; color: #253b32; }
-.editor-tabs small { color: var(--memory-accent); font: 900 7px/1 ui-monospace,monospace; }
-.editor-tabs span { margin-top: 3px; font-size: 9px; font-weight: 900; white-space: nowrap; }
+.editor-tabs small { color: var(--memory-accent); font: 900 8px/1 ui-monospace,monospace; }
+.editor-tabs span { font-size: 10px; font-weight: 900; line-height: 1.15; white-space: nowrap; }
 .panel-shell { min-height: 0; flex: 1 1 auto; padding: 0 10px 8px; overflow: hidden; }
 .panel-body { height: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: none; }
-.panel-body::-webkit-scrollbar,.editor-tabs::-webkit-scrollbar { display: none; }
+.panel-body::-webkit-scrollbar { display: none; }
 .panel-body :deep(.editor-section) { min-height: 100%; padding: 14px; border-radius: 18px 7px 18px 7px; background: rgba(255,255,255,.8); }
 .panel-body :deep(header h3),.orientation-panel h3 { font-size: 17px; }
 .panel-body :deep(.crop-stage) { height: min(118px,20dvh); margin-top: 9px; }
@@ -284,15 +288,17 @@ async function addToAlbum() {
 .orientation-grid i { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px 4px; background: #253b32; color: #f4d27c; font-size: 28px; font-style: normal; line-height: 1; }
 .orientation-grid strong { margin-top: 10px; font-size: 12px; }
 .orientation-grid small { max-width: 130px; margin-top: 4px; color: #717970; font-size: 8px; line-height: 1.5; }
-.editor-footer { flex: 0 0 auto; padding: 8px 10px max(10px,env(safe-area-inset-bottom)); border-top: 1px solid rgba(37,54,46,.12); background: rgba(247,243,234,.95); box-shadow: 0 -16px 34px rgba(32,48,40,.12); backdrop-filter: blur(18px); }
-.editor-footer p { margin: 0 0 7px; padding: 7px 10px; border-radius: 99px; background: #fff7e8; color: #9a523e; font-size: 8px; text-align: center; }
-.album-action { width: 100%; min-height: 50px; border: 0; border-radius: 16px 5px 16px 5px; background: #253b32; color: #fff; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(37,59,50,.18); }
+.editor-footer { flex: 0 0 auto; padding: 8px 12px max(10px,env(safe-area-inset-bottom)); border-top: 1px solid rgba(37,54,46,.12); background: rgba(247,243,234,.98); box-shadow: 0 -16px 34px rgba(32,48,40,.12); backdrop-filter: blur(18px); }
+.editor-feedback { margin: 0 0 7px; padding: 7px 10px; border-radius: 99px; background: #fff7e8; color: #9a523e; font-size: 9px; text-align: center; }
+.editor-footer-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; }
+.editor-status { display: grid; min-width: 0; gap: 2px; }.editor-status small { color: #79827b; font-size: 8px; }.editor-status strong { overflow: hidden; color: #273a32; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.album-action { min-width: 142px; min-height: 48px; padding: 0 18px; border: 0; border-radius: 16px 5px 16px 5px; background: #253b32; color: #fff; font-size: 12px; font-weight: 900; box-shadow: 0 12px 24px rgba(37,59,50,.18); }
 .album-action:disabled { opacity: .52; }
 .preview-enter-active,.preview-leave-active,.panel-enter-active,.panel-leave-active { transition: none; }
 
 @media (max-height: 720px) {
   .preview-stage { flex-basis: 128px; padding-top: 9px; }
-  .editor-tabs button { min-height: 38px; }
+  .editor-tabs button { min-height: 50px; }
   .album-action { min-height: 44px; }
 }
 </style>
