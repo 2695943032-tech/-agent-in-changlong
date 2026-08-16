@@ -1353,7 +1353,7 @@ watch([
         <button class="emergency-prompt" type="button" @click="lostChildOpen = true">儿童走失播报</button>
       </div>
       <div class="composer-row">
-        <input v-model="composerText" placeholder="和团团说点什么…">
+        <input v-model="composerText" :placeholder="`和${currentCompanion.name}说点什么…`">
         <button type="button">☺</button>
         <button class="plus-button" type="button" @click="toolsOpen = !toolsOpen">＋</button>
       </div>
